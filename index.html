@@ -88,6 +88,31 @@
   }
   .shop-link { color: #2f5bd6; text-decoration: none; font-size: 13px; }
   .shop-link:hover { text-decoration: underline; }
+  .cust-name { font-weight: 600; }
+  .cust-phone { font-size: 12px; color: #666; margin-top: 2px; }
+  .cust-login { font-size: 12px; color: #999; margin-top: 2px; font-style: italic; }
+
+  /* ===== КОНФИГУРАЦИЯ В ЗАКАЗЕ ===== */
+  .config-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .config-row select {
+    flex: 1; padding: 8px 10px; border: 1px solid #d4d8e2;
+    border-radius: 8px; font-size: 13px; font-family: inherit; background: #fff;
+  }
+  .config-row .config-cat { flex: 0 0 46%; }
+  .config-del {
+    background: none; border: 1px solid #e0b4b4; color: #c0392b;
+    border-radius: 8px; cursor: pointer; padding: 0 12px; font-size: 14px;
+  }
+  .config-del:hover { background: #fdeeee; }
+  .btn-config-add {
+    background: #f0f1f5; border: none; border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; font-size: 13px; color: #444;
+  }
+  .btn-config-add:hover { background: #e4e6ee; }
+  .config-sum {
+    font-weight: 700; font-size: 14px; color: #1f2330;
+    margin-top: 10px; min-height: 18px;
+  }
 
   /* ===== ТАБЛИЦА ===== */
   .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
@@ -277,6 +302,10 @@
     <input id="fPhone" type="tel" name="customerPhone" autocomplete="tel" placeholder="+7 (___) ___-__-__">
     <label for="fLogin">Логин</label>
     <input id="fLogin" type="text" name="customerLogin" autocomplete="off" placeholder="логин заказчика">
+    <label>Конфигурация</label>
+    <div id="configRows"></div>
+    <button type="button" class="btn-config-add" onclick="addConfigRow()">+ Добавить позицию</button>
+    <div class="config-sum" id="configSum"></div>
     <label for="fComment">Комментарий</label>
     <textarea id="fComment" name="comment" autocomplete="off" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
     <label for="fStatus">Статус заказа</label>
@@ -362,7 +391,7 @@ function statusBadge(status) {
 }
 
 const ORDERS_HEAD = '<tr>' +
-  '<th>№ заказа</th><th>Дата</th><th>Имя заказчика</th><th>Телефон</th><th>Логин</th>' +
+  '<th>№ заказа</th><th>Заказчик</th>' +
   '<th>Комментарий</th><th>Статус</th><th>Действия</th></tr>';
 
 function render() {
@@ -379,7 +408,7 @@ function render() {
         ' | В работе: ' + orders.filter(o => o.status === 'В работе').length;
 
   if (data.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">' +
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">' +
       (isArchive ? 'Архив пуст' : 'Заказов пока нет — нажмите «+ Добавить заказ»') + '</td></tr>';
     return;
   }
@@ -395,11 +424,11 @@ function render() {
         '</select>' +
         '<button class="btn-arch" onclick="archiveOrder(' + o.id + ')">🗄 В архив</button>';
     return '<tr>' +
-      '<td><a class="order-num" title="Открыть карточку заказа" onclick="openOrderCard(' + o.id + ')">' + esc(o.number) + '</a></td>' +
-      '<td class="order-date">' + esc(fmtDate(o.date)) + '</td>' +
-      '<td>' + esc(o.name) + '</td>' +
-      '<td>' + esc(o.phone) + '</td>' +
-      '<td>' + esc(o.login) + '</td>' +
+      '<td><a class="order-num" title="Открыть карточку заказа" onclick="openOrderCard(' + o.id + ')">' + esc(o.number) + '</a>' +
+        '<div class="order-date">' + esc(fmtDate(o.date)) + '</div></td>' +
+      '<td><div class="cust-name">' + esc(o.name) + '</div>' +
+        '<div class="cust-phone">' + esc(o.phone) + '</div>' +
+        (o.login ? '<div class="cust-login">@' + esc(o.login) + '</div>' : '') + '</td>' +
       '<td class="comment-cell" title="' + esc(o.comment) + '">' + esc(o.comment) + '</td>' +
       '<td>' + statusBadge(o.status, o.id) + '</td>' +
       '<td class="actions">' + actions + '</td>' +
@@ -525,6 +554,96 @@ document.getElementById('partOverlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closePartModal();
 });
 
+// ================= КОНФИГУРАЦИЯ В ЗАКАЗЕ =================
+// строки: категория → деталь из вкладки «Железо», внизу сумма выбранных
+function addConfigRow(saved) {
+  saved = saved || {};
+  const container = document.getElementById('configRows');
+
+  const row = document.createElement('div');
+  row.className = 'config-row';
+
+  const cat = document.createElement('select');
+  cat.className = 'config-cat';
+  cat.innerHTML = CATEGORIES.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
+
+  const part = document.createElement('select');
+  part.className = 'config-part';
+
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'config-del';
+  del.title = 'Убрать позицию';
+  del.textContent = '✕';
+  del.onclick = () => { row.remove(); updateConfigSum(); };
+
+  function fillParts() {
+    const list = parts.filter(p => p.category === cat.value);
+    let html = '<option value="">— не выбрано —</option>';
+    list.forEach(p => {
+      html += '<option value="' + p.id + '" data-price="' + (p.price || 0) + '">' + esc(p.name) + '</option>';
+    });
+    // деталь была удалена из каталога после сохранения заказа — показываем её снимок
+    if (saved.partId && !list.some(p => String(p.id) === String(saved.partId))) {
+      html += '<option value="' + esc(saved.partId) + '" data-price="' + (saved.price || 0) + '">' +
+        esc(saved.name) + ' (нет в каталоге)</option>';
+    }
+    part.innerHTML = html;
+    if (saved.partId) part.value = String(saved.partId);
+  }
+
+  cat.value = saved.category || CATEGORIES[0];
+  fillParts();
+
+  cat.onchange = () => { saved = {}; fillParts(); };
+  part.onchange = updateConfigSum;
+
+  row.appendChild(cat);
+  row.appendChild(part);
+  row.appendChild(del);
+  container.appendChild(row);
+}
+
+function updateConfigSum() {
+  let sum = 0, any = false;
+  document.querySelectorAll('#configRows .config-row').forEach(row => {
+    const sel = row.querySelector('.config-part');
+    if (!sel.value) return;
+    const price = Number(sel.selectedOptions[0].dataset.price || 0);
+    if (price > 0) { sum += price; any = true; }
+  });
+  document.getElementById('configSum').textContent =
+    any ? 'Сумма конфигурации: ' + sum.toLocaleString('ru-RU') + ' ₽' : '';
+}
+
+function collectConfig() {
+  const out = [];
+  document.querySelectorAll('#configRows .config-row').forEach(row => {
+    const cat = row.querySelector('.config-cat').value;
+    const sel = row.querySelector('.config-part');
+    if (!sel.value) return;
+    const opt = sel.selectedOptions[0];
+    const p = parts.find(x => String(x.id) === String(sel.value));
+    out.push({
+      partId: sel.value,
+      category: cat,
+      name: p ? p.name : opt.textContent.replace(' (нет в каталоге)', ''),
+      price: Number(opt.dataset.price || 0)
+    });
+  });
+  return out;
+}
+
+function resetConfigRows(list) {
+  document.getElementById('configRows').innerHTML = '';
+  if (list && list.length) {
+    list.forEach(item => addConfigRow(item));
+  } else {
+    addConfigRow(); // одна пустая строка для начала
+  }
+  updateConfigSum();
+}
+
 // ================= КАРТОЧКА ЗАКАЗА (РЕДАКТИРОВАНИЕ) =================
 function openOrderCard(id) {
   const o = orders.find(x => x.id === id) || archived.find(x => x.id === id);
@@ -537,6 +656,7 @@ function openOrderCard(id) {
   document.getElementById('fPhone').value = o.phone;
   document.getElementById('fLogin').value = o.login || '';
   document.getElementById('fComment').value = o.comment;
+  resetConfigRows(o.config);
   document.getElementById('fStatus').value = o.status;
   document.getElementById('modalOverlay').classList.add('open');
   document.getElementById('fName').focus();
@@ -654,6 +774,7 @@ function openAddModal() {
   document.getElementById('fPhone').value = '';
   document.getElementById('fLogin').value = '';
   document.getElementById('fComment').value = '';
+  resetConfigRows();
   document.getElementById('fStatus').value = 'Согласование';
   document.getElementById('modalOverlay').classList.add('open');
   document.getElementById('fName').focus();
@@ -675,6 +796,7 @@ function saveOrder() {
     phone: document.getElementById('fPhone').value.trim(),
     login: document.getElementById('fLogin').value.trim(),
     comment: document.getElementById('fComment').value.trim(),
+    config: collectConfig(),
     status: document.getElementById('fStatus').value
   };
 
