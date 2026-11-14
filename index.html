@@ -82,6 +82,13 @@
   .btn-add:hover { background: #27a064; }
   .stats { font-size: 13px; color: #777; }
 
+  .filter-select {
+    padding: 8px 10px; border: 1px solid #d4d8e2; border-radius: 8px;
+    font-size: 13px; cursor: pointer; background: #fff; display: none;
+  }
+  .shop-link { color: #2f5bd6; text-decoration: none; font-size: 13px; }
+  .shop-link:hover { text-decoration: underline; }
+
   /* ===== ТАБЛИЦА ===== */
   .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -210,28 +217,40 @@
       <div class="tabs">
         <button class="tab-btn active" id="tabOrders" onclick="switchTab('orders')">Заказы</button>
         <button class="tab-btn" id="tabArchive" onclick="switchTab('archive')">Архив</button>
+        <button class="tab-btn" id="tabParts" onclick="switchTab('parts')">Железо</button>
       </div>
       <div style="display:flex; align-items:center; gap:16px;">
         <span class="stats" id="stats"></span>
-        <button class="btn-add" onclick="openAddModal()">+ Добавить заказ</button>
+        <select class="filter-select" id="partFilter" onchange="render()"></select>
+        <button class="btn-add" id="btnAddOrder" onclick="openAddModal()">+ Добавить заказ</button>
+        <button class="btn-add" id="btnAddPart" style="display:none" onclick="openPartModal()">+ Добавить деталь</button>
       </div>
     </div>
 
     <div class="card">
       <table>
-        <thead>
-          <tr>
-            <th>№ заказа</th>
-            <th>Дата</th>
-            <th>Имя заказчика</th>
-            <th>Телефон</th>
-            <th>Комментарий</th>
-            <th>Статус</th>
-            <th>Действия</th>
-          </tr>
-        </thead>
+        <thead id="tableHead"></thead>
         <tbody id="tableBody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА ДЕТАЛИ (ЖЕЛЕЗО) ============ -->
+<div class="modal-overlay" id="partOverlay">
+  <div class="modal">
+    <h2 id="partModalTitle">Новая деталь</h2>
+    <label for="pCategory">Категория *</label>
+    <select id="pCategory"></select>
+    <label for="pName">Точное название *</label>
+    <input id="pName" type="text" autocomplete="off" placeholder="AMD Ryzen 7 7800X3D BOX">
+    <label for="pPrice">Цена, ₽</label>
+    <input id="pPrice" type="number" min="0" step="1" autocomplete="off" placeholder="35000">
+    <label for="pLink">Ссылка на магазин</label>
+    <input id="pLink" type="url" autocomplete="off" placeholder="https://...">
+    <div class="modal-buttons">
+      <button class="btn-cancel" onclick="closePartModal()">Отмена</button>
+      <button class="btn-save" onclick="savePart()">Сохранить</button>
     </div>
   </div>
 </div>
@@ -286,11 +305,13 @@ function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
 let orders = load('crm_orders', []);   // активные заказы
 let archived = load('crm_archived', []); // архив
 let nextNum = load('crm_nextnum', 1);  // счётчик номеров заказов
+let parts = load('crm_parts', []);     // комплектующие (вкладка «Железо»)
 
 function persist() {
   save('crm_orders', orders);
   save('crm_archived', archived);
   save('crm_nextnum', nextNum);
+  save('crm_parts', parts);
 }
 
 // ================= ВХОД =================
@@ -328,6 +349,11 @@ function switchTab(tab) {
   currentTab = tab;
   document.getElementById('tabOrders').classList.toggle('active', tab === 'orders');
   document.getElementById('tabArchive').classList.toggle('active', tab === 'archive');
+  document.getElementById('tabParts').classList.toggle('active', tab === 'parts');
+  const isParts = tab === 'parts';
+  document.getElementById('partFilter').style.display = isParts ? 'inline-block' : 'none';
+  document.getElementById('btnAddOrder').style.display = isParts ? 'none' : 'inline-block';
+  document.getElementById('btnAddPart').style.display = isParts ? 'inline-block' : 'none';
   render();
 }
 
@@ -337,7 +363,13 @@ function statusBadge(status) {
   return '<span class="badge ' + cls + '">' + status + '</span>';
 }
 
+const ORDERS_HEAD = '<tr>' +
+  '<th>№ заказа</th><th>Дата</th><th>Имя заказчика</th><th>Телефон</th>' +
+  '<th>Комментарий</th><th>Статус</th><th>Действия</th></tr>';
+
 function render() {
+  if (currentTab === 'parts') { renderParts(); return; }
+  document.getElementById('tableHead').innerHTML = ORDERS_HEAD;
   const isArchive = currentTab === 'archive';
   const data = isArchive ? archived : orders;
   const tbody = document.getElementById('tableBody');
@@ -390,6 +422,109 @@ function fmtDate(d) {
   const [y, m, day] = d.split('-');
   return day + '.' + m + '.' + y;
 }
+
+// ================= ЖЕЛЕЗО (КОМПЛЕКТУЮЩИЕ) =================
+const CATEGORIES = [
+  'Процессор', 'Видеокарта', 'Материнская плата', 'Оперативная память',
+  'Накопитель', 'Блок питания', 'Корпус', 'Воздушное охлаждение',
+  'Жидкостное охлаждение', 'Вентилятор'
+];
+let partEditId = null;
+
+// заполняем селект категорий в модалке и фильтр на вкладке
+(function fillCategorySelects() {
+  const opts = CATEGORIES.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
+  document.getElementById('pCategory').innerHTML = opts;
+  document.getElementById('partFilter').innerHTML = '<option value="">Все категории</option>' + opts;
+})();
+
+function renderParts() {
+  document.getElementById('tableHead').innerHTML = '<tr>' +
+    '<th>Категория</th><th>Название</th><th>Цена</th><th>Магазин</th><th>Действия</th></tr>';
+
+  const filter = document.getElementById('partFilter').value;
+  const data = parts
+    .filter(p => !filter || p.category === filter)
+    .sort((a, b) =>
+      CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) ||
+      a.name.localeCompare(b.name, 'ru'));
+
+  document.getElementById('stats').textContent =
+    'Деталей: ' + parts.length +
+    ' | Категорий: ' + new Set(parts.map(p => p.category)).size;
+
+  const tbody = document.getElementById('tableBody');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">' +
+      (parts.length === 0 ? 'Деталей пока нет — нажмите «+ Добавить деталь»' : 'В этой категории ничего нет') +
+      '</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(p =>
+    '<tr>' +
+      '<td>' + esc(p.category) + '</td>' +
+      '<td><a class="order-num" title="Редактировать" onclick="openPartModal(' + p.id + ')">' + esc(p.name) + '</a></td>' +
+      '<td>' + fmtPrice(p.price) + '</td>' +
+      '<td>' + (p.link
+        ? '<a class="shop-link" href="' + esc(p.link) + '" target="_blank" rel="noopener">Открыть ↗</a>'
+        : '—') + '</td>' +
+      '<td class="actions"><button class="btn-arch" onclick="deletePart(' + p.id + ')">✕ Удалить</button></td>' +
+    '</tr>'
+  ).join('');
+}
+
+function fmtPrice(v) {
+  const n = parseFloat(v);
+  return isNaN(n) || n === 0 ? '—' : n.toLocaleString('ru-RU') + ' ₽';
+}
+
+function openPartModal(id) {
+  partEditId = (typeof id === 'number') ? id : null;
+  const p = partEditId ? parts.find(x => x.id === partEditId) : null;
+  document.getElementById('partModalTitle').textContent = p ? 'Редактировать деталь' : 'Новая деталь';
+  document.getElementById('pCategory').value = p ? p.category : CATEGORIES[0];
+  document.getElementById('pName').value = p ? p.name : '';
+  document.getElementById('pPrice').value = p ? (p.price || '') : '';
+  document.getElementById('pLink').value = p ? (p.link || '') : '';
+  document.getElementById('partOverlay').classList.add('open');
+  document.getElementById('pName').focus();
+}
+
+function closePartModal() {
+  document.getElementById('partOverlay').classList.remove('open');
+}
+
+function savePart() {
+  const name = document.getElementById('pName').value.trim();
+  if (!name) { alert('Укажите точное название детали'); return; }
+  const part = {
+    id: partEditId ?? Date.now(),
+    category: document.getElementById('pCategory').value,
+    name: name,
+    price: parseFloat(document.getElementById('pPrice').value) || 0,
+    link: document.getElementById('pLink').value.trim()
+  };
+  parts = parts.filter(x => x.id !== part.id);
+  parts.push(part);
+  persist();
+  closePartModal();
+  render();
+}
+
+function deletePart(id) {
+  const p = parts.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm('Удалить деталь «' + p.name + '»?')) return;
+  parts = parts.filter(x => x.id !== id);
+  persist();
+  render();
+}
+
+// закрытие модалки детали по клику на фон
+document.getElementById('partOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closePartModal();
+});
 
 // ================= КАРТОЧКА ЗАКАЗА (РЕДАКТИРОВАНИЕ) =================
 function openOrderCard(id) {
@@ -565,7 +700,7 @@ document.getElementById('modalOverlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeModal();
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeStatusMenu(); closeModal(); }
+  if (e.key === 'Escape') { closeStatusMenu(); closeModal(); closePartModal(); }
 });
 
 // ================= АВТОВХОД =================
