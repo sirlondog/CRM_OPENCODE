@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM — Сборка ПК</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: #f0f2f5;
+    color: #1f2330;
+    min-height: 100vh;
+  }
+
+  /* ===== ОКНО ВХОДА ===== */
+  #loginScreen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #1e2a4a 0%, #2d3e6e 50%, #1a2340 100%);
+  }
+  .login-box {
+    background: #fff;
+    padding: 40px;
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    width: 360px;
+  }
+  .login-box h1 { font-size: 22px; text-align: center; margin-bottom: 6px; }
+  .login-box .sub { text-align: center; color: #888; font-size: 13px; margin-bottom: 24px; }
+  .login-box label { display: block; font-size: 13px; margin: 12px 0 4px; color: #444; }
+  .login-box input {
+    width: 100%; padding: 10px 12px; border: 1px solid #d4d8e2;
+    border-radius: 8px; font-size: 14px;
+  }
+  .login-box input:focus { outline: none; border-color: #3b6ef5; }
+  .login-box button {
+    width: 100%; margin-top: 20px; padding: 11px;
+    background: #3b6ef5; color: #fff; border: none; border-radius: 8px;
+    font-size: 15px; cursor: pointer;
+  }
+  .login-box button:hover { background: #2f5bd6; }
+  .login-error { color: #d33; font-size: 13px; margin-top: 10px; text-align: center; min-height: 18px; }
+  .login-hint { text-align: center; font-size: 12px; color: #aaa; margin-top: 14px; }
+
+  /* ===== ШАПКА ===== */
+  #app { display: none; }
+  header {
+    background: #fff;
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header .logo { font-weight: 700; font-size: 18px; }
+  header .logo span { color: #3b6ef5; }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .btn-logout {
+    background: none; border: 1px solid #d4d8e2; border-radius: 8px;
+    padding: 7px 14px; cursor: pointer; font-size: 13px; color: #555;
+  }
+  .btn-logout:hover { background: #f4f5f8; }
+
+  /* ===== КОНТЕНТ ===== */
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 28px; }
+  .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
+  .tabs { display: flex; gap: 8px; }
+  .tab-btn {
+    padding: 9px 20px; border: none; border-radius: 8px; cursor: pointer;
+    font-size: 14px; background: transparent; color: #555;
+  }
+  .tab-btn.active { background: #3b6ef5; color: #fff; }
+  .tab-btn:not(.active):hover { background: #e6e9f2; }
+  .btn-add {
+    background: #2eb872; color: #fff; border: none; border-radius: 8px;
+    padding: 10px 22px; font-size: 14px; cursor: pointer;
+  }
+  .btn-add:hover { background: #27a064; }
+  .stats { font-size: 13px; color: #777; }
+
+  /* ===== ТАБЛИЦА ===== */
+  .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th {
+    text-align: left; padding: 12px 14px; background: #f7f8fb;
+    color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: .4px;
+    border-bottom: 1px solid #e8eaf0;
+  }
+  td { padding: 12px 14px; border-bottom: 1px solid #f0f1f5; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbfd; }
+  .order-num { font-weight: 600; color: #1f2330; }
+  .order-date { color: #888; font-size: 12px; }
+  .comment-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #555; }
+
+  .badge {
+    display: inline-block; padding: 4px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+  }
+  .badge.soglasovanie { background: #fff4e0; color: #b7791f; }
+  .badge.vrabote      { background: #e5edff; color: #2f5bd6; }
+  .badge.zakryt       { background: #e2f7ec; color: #1f8f4d; }
+
+  .actions { white-space: nowrap; }
+  .actions select {
+    padding: 5px 8px; border: 1px solid #d4d8e2; border-radius: 6px;
+    font-size: 13px; cursor: pointer; background: #fff;
+  }
+  .btn-arch {
+    background: none; border: 1px solid #d4d8e2; border-radius: 6px;
+    padding: 5px 12px; margin-left: 6px; cursor: pointer; font-size: 13px; color: #666;
+  }
+  .btn-arch:hover { background: #fdeeee; border-color: #e4b3b3; color: #c0392b; }
+  .btn-back {
+    background: none; border: 1px solid #d4d8e2; border-radius: 6px;
+    padding: 5px 12px; margin-left: 6px; cursor: pointer; font-size: 13px; color: #666;
+  }
+  .btn-back:hover { background: #eef4ff; border-color: #a9c0f5; color: #2f5bd6; }
+  .empty-row td { text-align: center; color: #999; padding: 40px; }
+
+  /* ===== МОДАЛЬНОЕ ОКНО ===== */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(20,25,40,.5); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 14px; padding: 28px;
+    width: 440px; max-width: 92vw; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  .modal h2 { font-size: 18px; margin-bottom: 18px; }
+  .modal label { display: block; font-size: 13px; margin: 12px 0 4px; color: #444; }
+  .modal input, .modal select, .modal textarea {
+    width: 100%; padding: 9px 12px; border: 1px solid #d4d8e2;
+    border-radius: 8px; font-size: 14px; font-family: inherit;
+  }
+  .modal input:focus, .modal select:focus, .modal textarea:focus {
+    outline: none; border-color: #3b6ef5;
+  }
+  .modal textarea { resize: vertical; min-height: 70px; }
+  .modal .row2 { display: flex; gap: 12px; }
+  .modal .row2 > div { flex: 1; }
+  .modal-buttons { display: flex; gap: 10px; margin-top: 22px; }
+  .modal-buttons button { flex: 1; padding: 10px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; }
+  .btn-save { background: #3b6ef5; color: #fff; }
+  .btn-save:hover { background: #2f5bd6; }
+  .btn-cancel { background: #f0f1f5; color: #555; }
+  .btn-cancel:hover { background: #e4e6ee; }
+</style>
+</head>
+<body>
+
+<!-- ============ ОКНО ВХОДА ============ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <h1>CRM — Сборка ПК</h1>
+    <div class="sub">Вход в систему</div>
+    <label for="loginUser">Логин</label>
+    <input id="loginUser" type="text" placeholder="admin" autocomplete="username">
+    <label for="loginPass">Пароль</label>
+    <input id="loginPass" type="password" placeholder="••••••" autocomplete="current-password">
+    <div class="login-error" id="loginError"></div>
+    <button onclick="doLogin()">Войти</button>
+    <div class="login-hint">По умолчанию: admin / admin</div>
+  </div>
+</div>
+
+<!-- ============ ОСНОВНОЕ ПРИЛОЖЕНИЕ ============ -->
+<div id="app">
+  <header>
+    <div class="logo">CRM — <span>Сборка ПК</span></div>
+    <div class="header-right">
+      <button class="btn-logout" onclick="doLogout()">Выйти</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="toolbar">
+      <div class="tabs">
+        <button class="tab-btn active" id="tabOrders" onclick="switchTab('orders')">Заказы</button>
+        <button class="tab-btn" id="tabArchive" onclick="switchTab('archive')">Архив</button>
+      </div>
+      <div style="display:flex; align-items:center; gap:16px;">
+        <span class="stats" id="stats"></span>
+        <button class="btn-add" onclick="openAddModal()">+ Добавить заказ</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>№ заказа</th>
+            <th>Дата</th>
+            <th>Имя заказчика</th>
+            <th>Телефон</th>
+            <th>Комментарий</th>
+            <th>Статус</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ ============ -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">Новый заказ</h2>
+    <label for="fNumber">Номер заказа</label>
+    <input id="fNumber" type="text" placeholder="Например: 001">
+    <label for="fDate">Дата</label>
+    <input id="fDate" type="date">
+    <label for="fName">Имя заказчика *</label>
+    <input id="fName" type="text" placeholder="Иван Иванов">
+    <label for="fPhone">Номер телефона</label>
+    <input id="fPhone" type="tel" placeholder="+7 (___) ___-__-__">
+    <label for="fComment">Комментарий</label>
+    <textarea id="fComment" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
+    <label for="fStatus">Статус заказа</label>
+    <select id="fStatus">
+      <option value="Согласование">Согласование</option>
+      <option value="В работе">В работе</option>
+      <option value="Закрыт">Закрыт (в архив)</option>
+    </select>
+    <div class="modal-buttons">
+      <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+      <button class="btn-save" onclick="saveOrder()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================= ХРАНЕНИЕ ДАННЫХ =================
+// Пароль (можно поменять в консоли: localStorage.setItem('crm_pass','новый'))
+const DEFAULT_PASS = 'admin';
+let editingId = null; // id заказа в режиме редактирования
+
+function load(key, def) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? def; }
+  catch { return def; }
+}
+function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+let orders = load('crm_orders', []);   // активные заказы
+let archived = load('crm_archived', []); // архив
+let nextNum = load('crm_nextnum', 1);  // счётчик номеров заказов
+
+function persist() {
+  save('crm_orders', orders);
+  save('crm_archived', archived);
+  save('crm_nextnum', nextNum);
+}
+
+// ================= ВХОД =================
+function doLogin() {
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const correctPass = localStorage.getItem('crm_pass') || DEFAULT_PASS;
+  if (user && pass === correctPass) {
+    localStorage.setItem('crm_auth', '1');
+    showApp();
+  } else {
+    document.getElementById('loginError').textContent = 'Неверный логин или пароль';
+  }
+}
+function doLogout() {
+  localStorage.removeItem('crm_auth');
+  location.reload();
+}
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  render();
+}
+
+// ================= ВКЛАДКИ =================
+let currentTab = 'orders';
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabOrders').classList.toggle('active', tab === 'orders');
+  document.getElementById('tabArchive').classList.toggle('active', tab === 'archive');
+  render();
+}
+
+// ================= ОТРИСОВКА =================
+function statusBadge(status) {
+  const cls = { 'Согласование': 'soglasovanie', 'В работе': 'vrabote', 'Закрыт': 'zakryt' }[status] || '';
+  return '<span class="badge ' + cls + '">' + status + '</span>';
+}
+
+function render() {
+  const isArchive = currentTab === 'archive';
+  const data = isArchive ? archived : orders;
+  const tbody = document.getElementById('tableBody');
+  document.getElementById('stats').textContent =
+    isArchive
+      ? 'Заказов в архиве: ' + archived.length
+      : 'Активных заказов: ' + orders.length +
+        ' | Согласование: ' + orders.filter(o => o.status === 'Согласование').length +
+        ' | В работе: ' + orders.filter(o => o.status === 'В работе').length;
+
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">' +
+      (isArchive ? 'Архив пуст' : 'Заказов пока нет — нажмите «+ Добавить заказ»') + '</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(o => {
+    const actions = isArchive
+      ? '<button class="btn-back" onclick="restoreOrder(' + o.id + ')">↩ Восстановить</button>'
+      : '<select onchange="changeStatus(' + o.id + ', this.value)">' +
+          '<option value="">Изменить статус…</option>' +
+          '<option value="Согласование"' + (o.status === 'Согласование' ? ' selected' : '') + '>Согласование</option>' +
+          '<option value="В работе"' + (o.status === 'В работе' ? ' selected' : '') + '>В работе</option>' +
+          '<option value="Закрыт"' + (o.status === 'Закрыт' ? ' selected' : '') + '>Закрыт (в архив)</option>' +
+        '</select>' +
+        '<button class="btn-arch" onclick="archiveOrder(' + o.id + ')">🗄 В архив</button>';
+    return '<tr>' +
+      '<td class="order-num">' + esc(o.number) + '</td>' +
+      '<td class="order-date">' + esc(fmtDate(o.date)) + '</td>' +
+      '<td>' + esc(o.name) + '</td>' +
+      '<td>' + esc(o.phone) + '</td>' +
+      '<td class="comment-cell" title="' + esc(o.comment) + '">' + esc(o.comment) + '</td>' +
+      '<td>' + statusBadge(o.status) + '</td>' +
+      '<td class="actions">' + actions + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmtDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return day + '.' + m + '.' + y;
+}
+
+// ================= ДЕЙСТВИЯ =================
+function changeStatus(id, status) {
+  if (!status) { render(); return; }
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  o.status = status;
+  if (status === 'Закрыт') {
+    orders = orders.filter(x => x.id !== id);
+    archived.push(o); // закрытые автоматически уходят в архив
+  }
+  persist();
+  render();
+}
+
+function archiveOrder(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  if (!confirm('Отправить заказ №' + o.number + ' в архив?')) { render(); return; }
+  orders = orders.filter(x => x.id !== id);
+  archived.push(o);
+  persist();
+  render();
+}
+
+function restoreOrder(id) {
+  const o = archived.find(x => x.id === id);
+  if (!o) return;
+  if (o.status === 'Закрыт') o.status = 'В работе';
+  archived = archived.filter(x => x.id !== id);
+  orders.push(o);
+  persist();
+  render();
+}
+
+// ================= МОДАЛКА =================
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'Новый заказ';
+  // Номер подставляется автоматически
+  document.getElementById('fNumber').value = String(nextNum).padStart(3, '0');
+  // Дата подставляется автоматически (сегодня)
+  document.getElementById('fDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('fName').value = '';
+  document.getElementById('fPhone').value = '';
+  document.getElementById('fComment').value = '';
+  document.getElementById('fStatus').value = 'Согласование';
+  document.getElementById('modalOverlay').classList.add('open');
+  document.getElementById('fName').focus();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function saveOrder() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { alert('Укажите имя заказчика'); return; }
+
+  const order = {
+    id: editingId ?? (Date.now()),
+    number: document.getElementById('fNumber').value.trim() || String(nextNum).padStart(3, '0'),
+    date: document.getElementById('fDate').value,
+    name: name,
+    phone: document.getElementById('fPhone').value.trim(),
+    comment: document.getElementById('fComment').value.trim(),
+    status: document.getElementById('fStatus').value
+  };
+
+  if (order.status === 'Закрыт') {
+    orders = orders.filter(x => x.id !== order.id);
+    archived = archived.filter(x => x.id !== order.id);
+    archived.push(order);
+  } else {
+    orders = orders.filter(x => x.id !== order.id);
+    archived = archived.filter(x => x.id !== order.id);
+    orders.push(order);
+  }
+
+  // счётчик номеров растёт только при создании нового заказа
+  const usedNum = parseInt(order.number, 10);
+  if (!isNaN(usedNum) && usedNum >= nextNum) nextNum = usedNum + 1;
+
+  persist();
+  closeModal();
+  if (currentTab !== 'orders') switchTab('orders'); else render();
+}
+
+// закрытие модалки по клику на фон и по Escape
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+// ================= АВТОВХОД =================
+if (localStorage.getItem('crm_auth') === '1') showApp();
+</script>
+
+</body>
+</html>
