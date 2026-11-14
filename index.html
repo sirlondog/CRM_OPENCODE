@@ -331,14 +331,10 @@ function doLogout() {
   location.reload();
 }
 function showApp() {
-  document.getElementById('loginScreen').style.display = 'none';
-  // деактивируем поля формы входа, чтобы браузер не предлагал автозаполнение «Логин» в других формах
-  ['loginUser', 'loginPass'].forEach(id => {
-    const el = document.getElementById(id);
-    el.disabled = true;
-    el.value = '';
-  });
-  document.getElementById('loginError').textContent = '';
+  // полностью удаляем форму входа со страницы — иначе браузер (Chrome)
+  // считает поля формы заказа частью формы логина и предлагает автозаполнение «Логин»
+  const login = document.getElementById('loginScreen');
+  if (login) login.remove();
   document.getElementById('app').style.display = 'block';
   render();
 }
