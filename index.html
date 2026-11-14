@@ -249,15 +249,15 @@
   <div class="modal">
     <h2 id="modalTitle">Новый заказ</h2>
     <label for="fNumber">Номер заказа</label>
-    <input id="fNumber" type="text" placeholder="Например: 001">
+    <input id="fNumber" type="text" name="orderNumber" autocomplete="off" placeholder="Например: 001">
     <label for="fDate">Дата</label>
-    <input id="fDate" type="date">
+    <input id="fDate" type="date" name="orderDate" autocomplete="off">
     <label for="fName">Имя заказчика *</label>
-    <input id="fName" type="text" placeholder="Иван Иванов">
+    <input id="fName" type="text" name="customerName" autocomplete="name" placeholder="Иван Иванов">
     <label for="fPhone">Номер телефона</label>
-    <input id="fPhone" type="tel" placeholder="+7 (___) ___-__-__">
+    <input id="fPhone" type="tel" name="customerPhone" autocomplete="tel" placeholder="+7 (___) ___-__-__">
     <label for="fComment">Комментарий</label>
-    <textarea id="fComment" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
+    <textarea id="fComment" name="comment" autocomplete="off" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
     <label for="fStatus">Статус заказа</label>
     <select id="fStatus">
       <option value="Согласование">Согласование</option>
@@ -311,6 +311,13 @@ function doLogout() {
 }
 function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
+  // деактивируем поля формы входа, чтобы браузер не предлагал автозаполнение «Логин» в других формах
+  ['loginUser', 'loginPass'].forEach(id => {
+    const el = document.getElementById(id);
+    el.disabled = true;
+    el.value = '';
+  });
+  document.getElementById('loginError').textContent = '';
   document.getElementById('app').style.display = 'block';
   render();
 }
