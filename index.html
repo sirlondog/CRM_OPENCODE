@@ -102,6 +102,7 @@
     padding: 8px 10px; border: 1px solid #d4d8e2;
     border-radius: 8px; font-size: 13px; font-family: inherit; background: #fff;
   }
+  .config-extra { display: flex; gap: 8px; margin-top: 6px; }
   .config-del {
     background: none; border: 1px solid #e0b4b4; color: #c0392b;
     border-radius: 8px; cursor: pointer; padding: 0 12px; font-size: 14px;
@@ -109,9 +110,14 @@
   }
   .config-del:hover { background: #fdeeee; }
   .config-qty {
-    flex: 0 0 84px; padding: 8px 10px; border: 1px solid #d4d8e2;
+    flex: 0 0 110px; padding: 8px 10px; border: 1px solid #d4d8e2;
     border-radius: 8px; font-size: 13px; font-family: inherit;
   }
+  .config-cost {
+    flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid #d4d8e2;
+    border-radius: 8px; font-size: 13px; font-family: inherit;
+  }
+  .config-cost::placeholder, .config-qty::placeholder { color: #aaa; }
   .btn-config-add {
     background: #f0f1f5; border: none; border-radius: 8px;
     padding: 8px 14px; cursor: pointer; font-size: 13px; color: #444;
@@ -121,6 +127,7 @@
     font-weight: 700; font-size: 14px; color: #1f2330;
     margin-top: 10px; min-height: 18px;
   }
+  .config-profit { color: #1f8f4d; }
 
   /* ===== КНОПКА КОПИРОВАНИЯ ЗАКАЗА ===== */
   .num-wrap { display: flex; align-items: center; gap: 6px; }
@@ -322,6 +329,8 @@
     <div id="configRows"></div>
     <button type="button" class="btn-config-add" onclick="addConfigRow()">+ Добавить позицию</button>
     <div class="config-sum" id="configSum"></div>
+    <div class="config-sum" id="configCost"></div>
+    <div class="config-sum config-profit" id="configProfit"></div>
     <label for="fComment">Комментарий</label>
     <textarea id="fComment" name="comment" autocomplete="off" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
     <label for="fStatus">Статус заказа</label>
@@ -646,6 +655,8 @@ function addConfigRow(saved) {
   top.className = 'config-top';
   const bottom = document.createElement('div');
   bottom.className = 'config-bottom';
+  const extra = document.createElement('div');
+  extra.className = 'config-extra';
 
   const cat = document.createElement('select');
   cat.className = 'config-cat';
@@ -653,6 +664,16 @@ function addConfigRow(saved) {
 
   const part = document.createElement('select');
   part.className = 'config-part';
+
+  // закупочная стоимость позиции
+  const cost = document.createElement('input');
+  cost.type = 'number';
+  cost.className = 'config-cost';
+  cost.min = '0';
+  cost.step = '1';
+  cost.placeholder = 'Закупочная стоимость, ₽';
+  cost.value = (saved.cost != null && saved.cost !== '') ? saved.cost : '';
+  cost.oninput = updateConfigSum;
 
   // количество — только для вентиляторов
   const qty = document.createElement('input');
@@ -701,9 +722,11 @@ function addConfigRow(saved) {
   top.appendChild(cat);
   top.appendChild(del);
   bottom.appendChild(part);
-  bottom.appendChild(qty);
+  extra.appendChild(qty);
+  extra.appendChild(cost);
   row.appendChild(top);
   row.appendChild(bottom);
+  row.appendChild(extra);
   container.appendChild(row);
 }
 
@@ -713,16 +736,31 @@ function rowQty(row) {
   return Math.max(1, parseInt(qtyEl.value, 10) || 1);
 }
 
+function rowCost(row) {
+  const costEl = row.querySelector('.config-cost');
+  return Math.max(0, Number(costEl && costEl.value) || 0);
+}
+
+function fmtMoney(n) {
+  return n.toLocaleString('ru-RU') + ' ₽';
+}
+
 function updateConfigSum() {
-  let sum = 0, any = false;
+  let sum = 0, costSum = 0, any = false;
   document.querySelectorAll('#configRows .config-row').forEach(row => {
     const sel = row.querySelector('.config-part');
     if (!sel.value) return;
+    any = true;
     const price = Number(sel.selectedOptions[0].dataset.price || 0);
-    if (price > 0) { sum += price * rowQty(row); any = true; }
+    sum += price * rowQty(row);
+    costSum += rowCost(row) * rowQty(row);
   });
   document.getElementById('configSum').textContent =
-    any ? 'Сумма конфигурации: ' + sum.toLocaleString('ru-RU') + ' ₽' : '';
+    any ? 'Сумма конфигурации: ' + fmtMoney(sum) : '';
+  document.getElementById('configCost').textContent =
+    any ? 'Закупка: ' + fmtMoney(costSum) : '';
+  document.getElementById('configProfit').textContent =
+    any ? 'Прибыль: ' + fmtMoney(sum - costSum) : '';
 }
 
 function collectConfig() {
@@ -738,6 +776,7 @@ function collectConfig() {
       category: cat,
       name: p ? p.name : opt.textContent.replace(' (нет в каталоге)', ''),
       price: Number(opt.dataset.price || 0),
+      cost: rowCost(row),
       qty: rowQty(row)
     });
   });
