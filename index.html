@@ -572,7 +572,7 @@ function statusBadge(status) {
 
 const ORDERS_HEAD = '<tr>' +
   '<th>№ заказа</th><th>Заказчик</th>' +
-  '<th>Комментарий</th><th>Статус</th><th>Действия</th></tr>';
+  '<th>Комментарий</th><th>Статус</th></tr>';
 
 function render() {
   if (currentTab === 'parts') { renderParts(); return; }
@@ -588,21 +588,12 @@ function render() {
         ' | В работе: ' + orders.filter(o => o.status === 'В работе').length;
 
   if (data.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">' +
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="4">' +
       (isArchive ? 'Архив пуст' : 'Заказов пока нет — нажмите «+ Добавить заказ»') + '</td></tr>';
     return;
   }
 
   tbody.innerHTML = data.map(o => {
-    const actions = isArchive
-      ? '<button class="btn-back" onclick="restoreOrder(' + o.id + ')">↩ Восстановить</button>'
-      : '<select onchange="changeStatus(' + o.id + ', this.value)">' +
-          '<option value="">Изменить статус…</option>' +
-          '<option value="Согласование"' + (o.status === 'Согласование' ? ' selected' : '') + '>Согласование</option>' +
-          '<option value="В работе"' + (o.status === 'В работе' ? ' selected' : '') + '>В работе</option>' +
-          '<option value="Закрыт"' + (o.status === 'Закрыт' ? ' selected' : '') + '>Закрыт (в архив)</option>' +
-        '</select>' +
-        '<button class="btn-arch" onclick="archiveOrder(' + o.id + ')">🗄 В архив</button>';
     return '<tr>' +
       '<td><div class="num-wrap"><a class="order-num" title="Открыть карточку заказа" onclick="openOrderCard(' + o.id + ')">' + esc(o.number) + '</a>' +
         '<button class="btn-copy" title="Скопировать заказ текстом (для мессенджера)" onclick="copyOrder(' + o.id + ', this)">💾</button></div>' +
@@ -612,7 +603,6 @@ function render() {
         (o.login ? '<div class="cust-login">@' + esc(o.login) + '</div>' : '') + '</td>' +
       '<td class="comment-cell" title="' + esc(o.comment) + '">' + esc(o.comment) + '</td>' +
       '<td>' + statusBadge(o.status, o.id) + '</td>' +
-      '<td class="actions">' + actions + '</td>' +
     '</tr>';
   }).join('');
 }
@@ -1042,33 +1032,8 @@ document.addEventListener('click', e => {
 });
 
 // ================= ДЕЙСТВИЯ =================
-async function changeStatus(id, status) {
-  if (!status) { render(); return; }
-  await applyStatus(id, status);
-}
-
-async function archiveOrder(id) {
-  const o = orders.find(x => x.id === id);
-  if (!o) return;
-  if (!confirm('Отправить заказ №' + o.number + ' в архив?')) { render(); return; }
-  const { error } = await sb.from('orders').update({ archived: true }).eq('id', id);
-  if (error) { alert('Ошибка: ' + error.message); render(); return; }
-  orders = orders.filter(x => x.id !== id);
-  archived.push(o);
-  render();
-}
-
-async function restoreOrder(id) {
-  const o = archived.find(x => x.id === id);
-  if (!o) return;
-  const newStatus = (o.status === 'Закрыт') ? 'В работе' : o.status;
-  const { error } = await sb.from('orders').update({ archived: false, status: newStatus }).eq('id', id);
-  if (error) { alert('Ошибка: ' + error.message); render(); return; }
-  o.status = newStatus;
-  archived = archived.filter(x => x.id !== id);
-  orders.push(o);
-  render();
-}
+// смена статуса, архив и восстановление — всё через меню статуса
+// (клик по бейджу статуса в таблице), см. applyStatus()
 
 // ================= МОДАЛКА =================
 function openAddModal() {
