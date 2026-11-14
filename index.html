@@ -93,17 +93,25 @@
   .cust-login { font-size: 12px; color: #999; margin-top: 2px; font-style: italic; }
 
   /* ===== КОНФИГУРАЦИЯ В ЗАКАЗЕ ===== */
-  .config-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .config-row { margin-bottom: 12px; }
+  .config-top { display: flex; gap: 8px; margin-bottom: 6px; }
+  .config-top .config-cat { flex: 1; min-width: 0; }
+  .config-bottom { display: flex; gap: 8px; }
+  .config-part { flex: 1; min-width: 0; }
   .config-row select {
-    flex: 1; padding: 8px 10px; border: 1px solid #d4d8e2;
+    padding: 8px 10px; border: 1px solid #d4d8e2;
     border-radius: 8px; font-size: 13px; font-family: inherit; background: #fff;
   }
-  .config-row .config-cat { flex: 0 0 46%; }
   .config-del {
     background: none; border: 1px solid #e0b4b4; color: #c0392b;
     border-radius: 8px; cursor: pointer; padding: 0 12px; font-size: 14px;
+    flex: 0 0 auto;
   }
   .config-del:hover { background: #fdeeee; }
+  .config-qty {
+    flex: 0 0 84px; padding: 8px 10px; border: 1px solid #d4d8e2;
+    border-radius: 8px; font-size: 13px; font-family: inherit;
+  }
   .btn-config-add {
     background: #f0f1f5; border: none; border-radius: 8px;
     padding: 8px 14px; cursor: pointer; font-size: 13px; color: #444;
@@ -113,6 +121,14 @@
     font-weight: 700; font-size: 14px; color: #1f2330;
     margin-top: 10px; min-height: 18px;
   }
+
+  /* ===== КНОПКА КОПИРОВАНИЯ ЗАКАЗА ===== */
+  .num-wrap { display: flex; align-items: center; gap: 6px; }
+  .btn-copy {
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; padding: 0 2px; line-height: 1;
+  }
+  .btn-copy:hover { transform: scale(1.2); }
 
   /* ===== ТАБЛИЦА ===== */
   .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
@@ -188,7 +204,7 @@
   .modal-overlay.open { display: flex; }
   .modal {
     background: #fff; border-radius: 14px; padding: 28px;
-    width: 440px; max-width: 92vw; max-height: 90vh; overflow-y: auto;
+    width: 520px; max-width: 92vw; max-height: 90vh; overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0,0,0,.3);
   }
   .modal h2 { font-size: 18px; margin-bottom: 18px; }
@@ -424,7 +440,8 @@ function render() {
         '</select>' +
         '<button class="btn-arch" onclick="archiveOrder(' + o.id + ')">🗄 В архив</button>';
     return '<tr>' +
-      '<td><a class="order-num" title="Открыть карточку заказа" onclick="openOrderCard(' + o.id + ')">' + esc(o.number) + '</a>' +
+      '<td><div class="num-wrap"><a class="order-num" title="Открыть карточку заказа" onclick="openOrderCard(' + o.id + ')">' + esc(o.number) + '</a>' +
+        '<button class="btn-copy" title="Скопировать заказ текстом (для мессенджера)" onclick="copyOrder(' + o.id + ', this)">💾</button></div>' +
         '<div class="order-date">' + esc(fmtDate(o.date)) + '</div></td>' +
       '<td><div class="cust-name">' + esc(o.name) + '</div>' +
         '<div class="cust-phone">' + esc(o.phone) + '</div>' +
@@ -439,6 +456,69 @@ function render() {
 function statusBadge(status, id) {
   const cls = { 'Согласование': 'soglasovanie', 'В работе': 'vrabote', 'Закрыт': 'zakryt' }[status] || '';
   return '<span class="badge ' + cls + '" title="Нажмите, чтобы сменить статус" onclick="openStatusMenu(event, ' + id + ')">' + status + '</span>';
+}
+
+// ================= КОПИРОВАНИЕ ЗАКАЗА В БУФЕР ОБМЕНА =================
+function copyOrder(id, btn) {
+  const o = orders.find(x => x.id === id) || archived.find(x => x.id === id);
+  if (!o) return;
+
+  const lines = [];
+  lines.push('Заказ №' + o.number + ' от ' + fmtDate(o.date));
+  lines.push('Статус: ' + o.status);
+  if (o.name) lines.push('Заказчик: ' + o.name);
+  if (o.phone) lines.push('Телефон: ' + o.phone);
+  if (o.login) lines.push('Логин: ' + o.login);
+
+  const cfg = o.config || [];
+  if (cfg.length) {
+    lines.push('');
+    lines.push('Конфигурация:');
+    let total = 0;
+    cfg.forEach(c => {
+      const qty = (c.qty || 1);
+      const qtyTxt = qty > 1 ? ' ×' + qty : '';
+      const price = (c.price || 0) * qty;
+      total += price;
+      lines.push('• ' + c.category + ': ' + c.name + qtyTxt + ' — ' + price.toLocaleString('ru-RU') + ' ₽');
+    });
+    if (total > 0) lines.push('Сумма: ' + total.toLocaleString('ru-RU') + ' ₽');
+  }
+
+  if (o.comment) {
+    lines.push('');
+    lines.push('Комментарий: ' + o.comment);
+  }
+
+  const text = lines.join('\n');
+  const done = () => {
+    if (!btn) { alert('✓ Заказ №' + o.number + ' скопирован в буфер обмена'); return; }
+    const old = btn.textContent;
+    btn.textContent = '✓';
+    setTimeout(() => { btn.textContent = old; }, 1200);
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+
+function fallbackCopy(text, cb) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    cb();
+  } catch (e) {
+    alert('Не удалось скопировать автоматически — выделите текст вручную');
+  }
+  ta.remove();
 }
 
 function esc(s) {
@@ -562,6 +642,10 @@ function addConfigRow(saved) {
 
   const row = document.createElement('div');
   row.className = 'config-row';
+  const top = document.createElement('div');
+  top.className = 'config-top';
+  const bottom = document.createElement('div');
+  bottom.className = 'config-bottom';
 
   const cat = document.createElement('select');
   cat.className = 'config-cat';
@@ -569,6 +653,17 @@ function addConfigRow(saved) {
 
   const part = document.createElement('select');
   part.className = 'config-part';
+
+  // количество — только для вентиляторов
+  const qty = document.createElement('input');
+  qty.type = 'number';
+  qty.className = 'config-qty';
+  qty.min = '1';
+  qty.step = '1';
+  qty.value = saved.qty || 1;
+  qty.title = 'Количество';
+  qty.style.display = 'none';
+  qty.oninput = updateConfigSum;
 
   const del = document.createElement('button');
   del.type = 'button';
@@ -592,16 +687,30 @@ function addConfigRow(saved) {
     if (saved.partId) part.value = String(saved.partId);
   }
 
+  function refreshQty() {
+    qty.style.display = (cat.value === 'Вентилятор') ? '' : 'none';
+  }
+
   cat.value = saved.category || CATEGORIES[0];
   fillParts();
+  refreshQty();
 
-  cat.onchange = () => { saved = {}; fillParts(); };
+  cat.onchange = () => { saved = {}; fillParts(); refreshQty(); updateConfigSum(); };
   part.onchange = updateConfigSum;
 
-  row.appendChild(cat);
-  row.appendChild(part);
-  row.appendChild(del);
+  top.appendChild(cat);
+  top.appendChild(del);
+  bottom.appendChild(part);
+  bottom.appendChild(qty);
+  row.appendChild(top);
+  row.appendChild(bottom);
   container.appendChild(row);
+}
+
+function rowQty(row) {
+  const qtyEl = row.querySelector('.config-qty');
+  if (!qtyEl || qtyEl.style.display === 'none') return 1;
+  return Math.max(1, parseInt(qtyEl.value, 10) || 1);
 }
 
 function updateConfigSum() {
@@ -610,7 +719,7 @@ function updateConfigSum() {
     const sel = row.querySelector('.config-part');
     if (!sel.value) return;
     const price = Number(sel.selectedOptions[0].dataset.price || 0);
-    if (price > 0) { sum += price; any = true; }
+    if (price > 0) { sum += price * rowQty(row); any = true; }
   });
   document.getElementById('configSum').textContent =
     any ? 'Сумма конфигурации: ' + sum.toLocaleString('ru-RU') + ' ₽' : '';
@@ -628,7 +737,8 @@ function collectConfig() {
       partId: sel.value,
       category: cat,
       name: p ? p.name : opt.textContent.replace(' (нет в каталоге)', ''),
-      price: Number(opt.dataset.price || 0)
+      price: Number(opt.dataset.price || 0),
+      qty: rowQty(row)
     });
   });
   return out;
