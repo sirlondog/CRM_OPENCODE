@@ -93,14 +93,39 @@
   td { padding: 12px 14px; border-bottom: 1px solid #f0f1f5; vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: #fafbfd; }
-  .order-num { font-weight: 600; color: #1f2330; }
+  .order-num {
+    font-weight: 600; color: #2f5bd6; cursor: pointer;
+    text-decoration: none; border-bottom: 1px dashed #a9c0f5;
+  }
+  .order-num:hover { color: #1e46c8; border-bottom-style: solid; }
+
+  /* ===== МЕНЮ ВЫБОРА СТАТУСА ===== */
+  .status-menu {
+    display: none; position: fixed; z-index: 200;
+    background: #fff; border-radius: 10px; padding: 6px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.22); min-width: 190px;
+  }
+  .status-menu.open { display: block; }
+  .status-menu .menu-title {
+    font-size: 11px; color: #999; text-transform: uppercase;
+    padding: 6px 10px 4px; letter-spacing: .4px;
+  }
+  .status-menu .menu-item {
+    display: block; width: 100%; text-align: left;
+    padding: 8px 10px; border: none; background: none;
+    border-radius: 7px; cursor: pointer; font-size: 13px;
+  }
+  .status-menu .menu-item:hover { background: #f0f3fa; }
+  .status-menu .menu-item.current { font-weight: 700; }
+  .status-menu .menu-item.current::after { content: ' ✓'; }
   .order-date { color: #888; font-size: 12px; }
   .comment-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #555; }
 
   .badge {
     display: inline-block; padding: 4px 12px; border-radius: 20px;
-    font-size: 12px; font-weight: 600;
+    font-size: 12px; font-weight: 600; cursor: pointer; user-select: none;
   }
+  .badge:hover { filter: brightness(.94); }
   .badge.soglasovanie { background: #fff4e0; color: #b7791f; }
   .badge.vrabote      { background: #e5edff; color: #2f5bd6; }
   .badge.zakryt       { background: #e2f7ec; color: #1f8f4d; }
@@ -209,6 +234,14 @@
       </table>
     </div>
   </div>
+</div>
+
+<!-- ============ МЕНЮ ВЫБОРА СТАТУСА ============ -->
+<div class="status-menu" id="statusMenu">
+  <div class="menu-title">Изменить статус</div>
+  <button class="menu-item" data-status="Согласование">🟡 Согласование</button>
+  <button class="menu-item" data-status="В работе">🔵 В работе</button>
+  <button class="menu-item" data-status="Закрыт">🟢 Закрыт (в архив)</button>
 </div>
 
 <!-- ============ МОДАЛКА ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ ============ -->
@@ -325,15 +358,20 @@ function render() {
         '</select>' +
         '<button class="btn-arch" onclick="archiveOrder(' + o.id + ')">🗄 В архив</button>';
     return '<tr>' +
-      '<td class="order-num">' + esc(o.number) + '</td>' +
+      '<td><a class="order-num" title="Открыть карточку заказа" onclick="openOrderCard(' + o.id + ')">' + esc(o.number) + '</a></td>' +
       '<td class="order-date">' + esc(fmtDate(o.date)) + '</td>' +
       '<td>' + esc(o.name) + '</td>' +
       '<td>' + esc(o.phone) + '</td>' +
       '<td class="comment-cell" title="' + esc(o.comment) + '">' + esc(o.comment) + '</td>' +
-      '<td>' + statusBadge(o.status) + '</td>' +
+      '<td>' + statusBadge(o.status, o.id) + '</td>' +
       '<td class="actions">' + actions + '</td>' +
     '</tr>';
   }).join('');
+}
+
+function statusBadge(status, id) {
+  const cls = { 'Согласование': 'soglasovanie', 'В работе': 'vrabote', 'Закрыт': 'zakryt' }[status] || '';
+  return '<span class="badge ' + cls + '" title="Нажмите, чтобы сменить статус" onclick="openStatusMenu(event, ' + id + ')">' + status + '</span>';
 }
 
 function esc(s) {
@@ -345,6 +383,88 @@ function fmtDate(d) {
   const [y, m, day] = d.split('-');
   return day + '.' + m + '.' + y;
 }
+
+// ================= КАРТОЧКА ЗАКАЗА (РЕДАКТИРОВАНИЕ) =================
+function openOrderCard(id) {
+  const o = orders.find(x => x.id === id) || archived.find(x => x.id === id);
+  if (!o) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Карточка заказа №' + o.number;
+  document.getElementById('fNumber').value = o.number;
+  document.getElementById('fDate').value = o.date;
+  document.getElementById('fName').value = o.name;
+  document.getElementById('fPhone').value = o.phone;
+  document.getElementById('fComment').value = o.comment;
+  document.getElementById('fStatus').value = o.status;
+  document.getElementById('modalOverlay').classList.add('open');
+  document.getElementById('fName').focus();
+}
+
+// ================= МЕНЮ СМЕНЫ СТАТУСА =================
+let menuOrderId = null;
+
+function openStatusMenu(e, id) {
+  e.stopPropagation();
+  menuOrderId = id;
+  const inOrders = orders.some(x => x.id === id);
+  const o = (inOrders ? orders : archived).find(x => x.id === id);
+  if (!o) return;
+
+  const menu = document.getElementById('statusMenu');
+  menu.querySelectorAll('.menu-item').forEach(item => {
+    item.classList.toggle('current', item.dataset.status === o.status);
+  });
+
+  // показываем меню рядом с бейджиком
+  menu.classList.add('open');
+  const rect = e.target.getBoundingClientRect();
+  const mw = 200, mh = 130;
+  let x = rect.left, y = rect.bottom + 4;
+  if (x + mw > window.innerWidth) x = window.innerWidth - mw - 8;
+  if (y + mh > window.innerHeight) y = rect.top - mh - 4;
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+}
+
+function closeStatusMenu() {
+  document.getElementById('statusMenu').classList.remove('open');
+  menuOrderId = null;
+}
+
+function applyStatus(id, status) {
+  let o = orders.find(x => x.id === id);
+  let fromArchive = false;
+  if (!o) { o = archived.find(x => x.id === id); fromArchive = true; }
+  if (!o) { closeStatusMenu(); return; }
+
+  o.status = status;
+  if (fromArchive) {
+    // из архива: любой статус кроме «Закрыт» возвращает заказ в работу
+    if (status !== 'Закрыт') {
+      archived = archived.filter(x => x.id !== id);
+      orders.push(o);
+    }
+  } else if (status === 'Закрыт') {
+    // закрытые автоматически уходят в архив
+    orders = orders.filter(x => x.id !== id);
+    archived.push(o);
+  }
+  persist();
+  closeStatusMenu();
+  render();
+}
+
+// клик по пункту меню
+document.querySelectorAll('#statusMenu .menu-item').forEach(item => {
+  item.addEventListener('click', () => {
+    if (menuOrderId != null) applyStatus(menuOrderId, item.dataset.status);
+  });
+});
+// закрытие меню по клику вне его
+document.addEventListener('click', e => {
+  const menu = document.getElementById('statusMenu');
+  if (menu.classList.contains('open') && !menu.contains(e.target)) closeStatusMenu();
+});
 
 // ================= ДЕЙСТВИЯ =================
 function changeStatus(id, status) {
@@ -438,7 +558,7 @@ document.getElementById('modalOverlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeModal();
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Escape') { closeStatusMenu(); closeModal(); }
 });
 
 // ================= АВТОВХОД =================
