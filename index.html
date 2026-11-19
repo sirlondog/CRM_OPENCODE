@@ -81,13 +81,7 @@
     transition: background .15s;
   }
   .login-box button:hover { background: var(--green-hover); }
-  .login-box .btn-signup {
-    background: var(--surface-2); color: var(--text-light);
-    border: 1px solid var(--border); margin-top: 10px; font-size: 13px;
-  }
-  .login-box .btn-signup:hover { background: var(--surface-3); color: var(--text); }
   .login-error { color: #ff8f8f; font-size: 13px; margin-top: 10px; text-align: center; min-height: 18px; }
-  .login-hint { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 14px; }
 
   /* ===== ШАПКА ===== */
   #app { display: none; }
@@ -398,13 +392,11 @@
     <h1>CRM — Сборка ПК</h1>
     <div class="sub">Вход в систему</div>
     <label for="loginEmail">Логин</label>
-    <input id="loginEmail" type="text" placeholder="admin (или admin@star-comp.ru)" autocomplete="username">
+    <input id="loginEmail" type="text" placeholder="логин или email" autocomplete="username">
     <label for="loginPass">Пароль</label>
     <input id="loginPass" type="password" placeholder="••••••" autocomplete="current-password">
     <div class="login-error" id="loginError"></div>
     <button onclick="doLogin()">Войти</button>
-    <button class="btn-signup" onclick="doSignup()">Создать аккаунт (регистрация)</button>
-    <div class="login-hint">Вход: igor / 00065356 &nbsp;•&nbsp; admin / admin1 &nbsp;•&nbsp; Данные в облаке</div>
   </div>
 </div>
 
@@ -646,26 +638,7 @@ async function doLogin() {
   }
   const { error } = await sb.auth.signInWithPassword({ email, password: pass });
   if (error) {
-    document.getElementById('loginError').textContent = 'Неверный логин или пароль (admin / admin1)';
-    return;
-  }
-  await enterApp();
-}
-async function doSignup() {
-  const email = document.getElementById('loginEmail').value.trim();
-  const pass = document.getElementById('loginPass').value;
-  document.getElementById('loginError').textContent = '';
-  if (!email || !pass) {
-    document.getElementById('loginError').textContent = 'Введите email и пароль';
-    return;
-  }
-  if (pass.length < 6) {
-    document.getElementById('loginError').textContent = 'Пароль должен быть не короче 6 символов';
-    return;
-  }
-  const { error } = await sb.auth.signUp({ email, password: pass });
-  if (error) {
-    document.getElementById('loginError').textContent = 'Не удалось создать аккаунт: ' + error.message;
+    document.getElementById('loginError').textContent = 'Неверный логин или пароль';
     return;
   }
   await enterApp();
