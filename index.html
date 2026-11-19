@@ -587,7 +587,7 @@
 
     <div class="modal-buttons">
       <button class="btn-cancel" onclick="closeStockModal()">Закрыть</button>
-      <button class="btn-save" onclick="saveStockItem()">Сохранить</button>
+      <button class="btn-save" id="btnStockSave" type="button" onclick="saveStockItem()">Сохранить</button>
     </div>
   </div>
 </div>
@@ -1706,6 +1706,16 @@ let stockSelected = new Set();  // отмеченные галочками по�
 let stockPendingId = null;      // id будущей записи — нужен для имён файлов
 let stockArchiveView = false;   // смотрим архив позиций вместо активного склада
 let stockFocusTimer = null;     // отложенный фокус поля «Позиция» для новой записи
+let stockSaving = false;        // защита от повторного нажатия «Сохранить»
+
+function setStockSaving(on) {
+  stockSaving = on;
+  const btn = document.getElementById('btnStockSave');
+  if (btn) {
+    btn.disabled = on;
+    btn.textContent = on ? 'Сохраняю…' : 'Сохранить';
+  }
+}
 
 function visibleStockItems() {
   return stock.filter(s => !!s.archived === stockArchiveView);
@@ -2093,6 +2103,7 @@ function applyWarranty() {
 
 async function openStockModal(id) {
   if (!isAdmin()) return;
+  setStockSaving(false);
   stockEditId = id || null;
   stockPendingId = id || Date.now();
   const s = id ? stock.find(x => x.id === id) : null;
@@ -2236,44 +2247,52 @@ function findSerialDuplicate(serial, editId) {
 }
 
 async function saveStockItem() {
-  if (!isAdmin()) return;
-  const dateManual = document.getElementById('sDateManual').checked;
-  const date = dateManual ? document.getElementById('sDate').value : todayStr();
-  if (!date) { alert('Укажите дату'); return; }
-  const serial = document.getElementById('sSerial').value.trim();
-  const dup = findSerialDuplicate(serial, stockEditId);
-  if (dup) {
-    alert('Такой серийный номер уже есть ' + (dup.archived ? 'в архиве' : 'на складе') +
-      ': ' + fmtDate(dup.date) + ', ' + partName(dup.position) +
-      '.\nВведите другой номер или отредактируйте ту позицию.');
-    clearTimeout(stockFocusTimer);
-    const inp = document.getElementById('sSerial');
-    inp.focus(); inp.select();
-    return;
+  if (!isAdmin() || stockSaving) return;
+  setStockSaving(true);
+  try {
+    const dateManual = document.getElementById('sDateManual').checked;
+    const date = dateManual ? document.getElementById('sDate').value : todayStr();
+    if (!date) { alert('Укажите дату'); return; }
+    const serial = document.getElementById('sSerial').value.trim();
+    const dup = findSerialDuplicate(serial, stockEditId || stockPendingId);
+    if (dup) {
+      alert('Такой серийный номер уже есть ' + (dup.archived ? 'в архиве' : 'на складе') +
+        ': ' + fmtDate(dup.date) + ', ' + partName(dup.position) +
+        '.\nВведите другой номер или отредактируйте ту позицию.');
+      clearTimeout(stockFocusTimer);
+      const inp = document.getElementById('sSerial');
+      inp.focus(); inp.select();
+      return;
+    }
+    const id = stockEditId || stockPendingId || Date.now();
+    const item = {
+      id: id,
+      date: date,
+      dateManual: dateManual,
+      position: document.getElementById('sPositionId').value ||
+                document.getElementById('sPosition').value.trim(),
+      serial: serial,
+      cost: document.getElementById('sCost').value.trim(),
+      supplier: document.getElementById('sSupplier').value.trim(),
+      related: stockRelated.slice(),
+      warranty: normalizeWarranty(document.getElementById('sWarranty').value.trim(), date),
+      checkText: document.getElementById('sCheckText').value.trim(),
+      files: stockFiles.slice(),
+      archived: stockEditId
+        ? !!(stock.find(x => x.id === stockEditId) || {}).archived
+        : stockArchiveView
+    };
+    // Повторное сохранение той же карточки обновляет ту же запись, а не создаёт новую
+    if (stock.some(x => x.id === id)) stock = stock.map(x => x.id === id ? item : x);
+    else stock.push(item);
+    await saveStockValue();
+    closeStockModal();
+    render();
+  } catch (e) {
+    alert('Ошибка сохранения: ' + e.message);
+  } finally {
+    setStockSaving(false);
   }
-  const item = {
-    id: stockEditId || stockPendingId || Date.now(),
-    date: date,
-    dateManual: dateManual,
-    position: document.getElementById('sPositionId').value ||
-              document.getElementById('sPosition').value.trim(),
-    serial: serial,
-    cost: document.getElementById('sCost').value.trim(),
-    supplier: document.getElementById('sSupplier').value.trim(),
-    related: stockRelated.slice(),
-    warranty: normalizeWarranty(document.getElementById('sWarranty').value.trim(), date),
-    checkText: document.getElementById('sCheckText').value.trim(),
-    files: stockFiles.slice(),
-    archived: stockEditId
-      ? !!(stock.find(x => x.id === stockEditId) || {}).archived
-      : stockArchiveView
-  };
-  if (stockEditId) stock = stock.map(x => x.id === stockEditId ? item : x);
-  else stock.push(item);
-  try { await saveStockValue(); }
-  catch (e) { alert('Ошибка сохранения: ' + e.message); return; }
-  closeStockModal();
-  render();
 }
 
 function deleteStockItem(id) {
