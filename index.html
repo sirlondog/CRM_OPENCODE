@@ -395,7 +395,8 @@
   .btn-stock-act:disabled { opacity: .4; cursor: not-allowed; }
   .stock-check { width: auto !important; margin: 0; accent-color: var(--green); }
   .stock-hint { color: var(--text-muted); font-size: 12px; margin-top: 4px; min-height: 15px; }
-  .stock-more { margin-top: 10px; border-top: 1px solid var(--border-soft); padding-top: 8px; }
+  .stock-more { margin-top: 8px; border: 1px solid var(--border-soft); border-radius: 8px; padding: 5px 10px; background: var(--bg); }
+  .stock-more[open] { border-color: var(--border); }
   .stock-more summary { cursor: pointer; color: var(--text-light); font-size: 13px; list-style: none; padding: 4px 0; }
   .stock-more summary::-webkit-details-marker { display: none; }
   .stock-more summary::before { content: '▸ '; color: var(--green); }
@@ -539,20 +540,29 @@
            oninput="previewWarranty()" onblur="applyWarranty()">
     <div class="stock-hint" id="sWarrantyHint"></div>
 
-    <details class="stock-more" id="stockMore">
-      <summary>Дополнительно: поставщик, заказы, чек</summary>
-
+    <details class="stock-more" data-stock-more>
+      <summary>Поставщик</summary>
       <label for="sSupplier">Поставщик</label>
       <input id="sSupplier" type="text" autocomplete="off" placeholder="Например: ООО «ТехноСнаб»">
+    </details>
 
-      <label for="sOrderSearch">Связан с заказами</label>
-      <input id="sOrderSearch" type="search" autocomplete="off" placeholder="Поиск по номеру, имени или логину" oninput="renderStockRel()">
+    <details class="stock-more" data-stock-more>
+      <summary>Связан с заказами</summary>
+      <label for="sOrderSearch">Поиск по номеру, имени или логину</label>
+      <input id="sOrderSearch" type="search" autocomplete="off" placeholder="Например: 15840" oninput="renderStockRel()">
       <div class="stock-rel-list" id="sOrderResults"></div>
       <div class="stock-selected" id="sOrderSelected"></div>
+    </details>
 
-      <label for="sCheckText">Чек (описание)</label>
+    <details class="stock-more" data-stock-more>
+      <summary>Чек</summary>
+      <label for="sCheckText">Описание чека</label>
       <input id="sCheckText" type="text" autocomplete="off" placeholder="Например: чек №123 от 19.11.2026">
-      <label class="stock-file-label" for="stockFileInput">Прикрепить файлы чека</label>
+    </details>
+
+    <details class="stock-more" data-stock-more>
+      <summary>Файлы чека</summary>
+      <label class="stock-file-label" for="stockFileInput">Прикрепить файлы</label>
       <input id="stockFileInput" type="file" multiple accept="image/*,.pdf" onchange="addStockFiles(this.files)">
       <div class="stock-files" id="sFiles"></div>
     </details>
@@ -1919,7 +1929,7 @@ async function openStockModal(id) {
   if (!isAdmin()) return;
   stockEditId = id || null;
   const s = id ? stock.find(x => x.id === id) : null;
-  document.getElementById('stockMore').open = false;
+  document.querySelectorAll('[data-stock-more]').forEach(d => { d.open = false; });
   document.getElementById('stockModalTitle').textContent = s ? 'Редактировать позицию' : 'Новая позиция';
   document.getElementById('sDateManual').checked = s ? !!s.dateManual : false;
   document.getElementById('sDate').value = s ? (s.date || '') : todayStr();
