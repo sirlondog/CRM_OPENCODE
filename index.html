@@ -359,6 +359,9 @@
     .container { padding: 14px 10px; }
     header { padding: 10px 12px; }
     .modal { padding: 20px 16px; }
+    /* строка вкладок переносится, кнопки не вылезают за экран */
+    .tabs { flex-wrap: wrap; }
+    .toolbar > div:last-child { flex-wrap: wrap; gap: 10px; }
   }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -396,6 +399,7 @@
         <button class="tab-btn active" id="tabOrders" onclick="switchTab('orders')">Заказы</button>
         <button class="tab-btn" id="tabArchive" onclick="switchTab('archive')">Архив</button>
         <button class="tab-btn" id="tabParts" onclick="switchTab('parts')">Железо</button>
+        <button class="btn-add" id="btnAddPart" style="display:none" onclick="openPartModal()">+ Добавить деталь</button>
       </div>
       <div style="display:flex; align-items:center; gap:16px;">
         <span class="stats" id="stats"></span>
@@ -404,7 +408,6 @@
         <datalist id="partsDatalist"></datalist>
         <select class="filter-select" id="partFilter" onchange="render()"></select>
         <button class="btn-add" id="btnAddOrder" onclick="openAddModal()">+ Добавить заказ</button>
-        <button class="btn-add" id="btnAddPart" style="display:none" onclick="openPartModal()">+ Добавить деталь</button>
       </div>
     </div>
 
