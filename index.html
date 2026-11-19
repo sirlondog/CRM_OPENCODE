@@ -451,6 +451,12 @@
     <label>Конфигурации</label>
     <div id="configBlocks"></div>
     <button type="button" class="btn-config-add" onclick="addConfigBlock()">+ Добавить ещё конфигурацию</button>
+    <label for="fPayment">Способ оплаты</label>
+    <input id="fPayment" type="text" name="paymentMethod" autocomplete="off" placeholder="наличные, перевод, рассрочка...">
+    <label for="fShip">Способ получения</label>
+    <input id="fShip" type="text" name="deliveryMethod" autocomplete="off" placeholder="самовывоз, доставка курьером...">
+    <label for="fAddress">Адрес доставки</label>
+    <input id="fAddress" type="text" name="deliveryAddress" autocomplete="off" placeholder="адрес, если нужна доставка">
     <label for="fComment">Комментарий</label>
     <textarea id="fComment" name="comment" autocomplete="off" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
     <label for="fSource">Источник</label>
@@ -1200,6 +1206,9 @@ function openOrderCard(id) {
   document.getElementById('fPhone').value = o.phone;
   document.getElementById('fLogin').value = o.login || '';
   document.getElementById('fSource').value = o.source || '';
+  document.getElementById('fPayment').value = o.payment || '';
+  document.getElementById('fShip').value = o.ship || '';
+  document.getElementById('fAddress').value = o.address || '';
   document.getElementById('fComment').value = o.comment;
   renderConfigBlocks(normalizeConfigBlocks(o.config));
   document.getElementById('fStatus').value = o.status;
@@ -1312,6 +1321,9 @@ function openAddModal() {
   document.getElementById('fPhone').value = '';
   document.getElementById('fLogin').value = '';
   document.getElementById('fSource').value = '';
+  document.getElementById('fPayment').value = '';
+  document.getElementById('fShip').value = '';
+  document.getElementById('fAddress').value = '';
   document.getElementById('fComment').value = '';
   renderConfigBlocks(null);
   document.getElementById('fStatus').value = 'Согласование';
@@ -1348,26 +1360,45 @@ async function saveOrder() {
     phone: document.getElementById('fPhone').value.trim(),
     login: document.getElementById('fLogin').value.trim(),
     source: document.getElementById('fSource').value.trim(),
+    payment: document.getElementById('fPayment').value.trim(),
+    ship: document.getElementById('fShip').value.trim(),
+    address: document.getElementById('fAddress').value.trim(),
     comment: document.getElementById('fComment').value.trim(),
     config: collectConfigBlocks(),
     status: document.getElementById('fStatus').value
   };
   const closed = row.status === 'Закрыт';
 
-  async function write(withSource) {
-    const p = withSource ? row : (() => { const c = { ...row }; delete c.source; return c; })();
+  // Пробуем сохранить всё; если в таблице orders ещё нет какой-то колонки
+  // (source, payment, ship, address...), убираем её из запроса и повторяем.
+  // Как только колонку добавят в Supabase — поля начнут сохраняться сами.
+  async function write(payload) {
     if (editingId) {
-      return sb.from('orders').update({ ...p, archived: closed }).eq('id', editingId).select().single();
+      return sb.from('orders').update({ ...payload, archived: closed }).eq('id', editingId).select().single();
     }
-    return sb.from('orders').insert(p).select().single();
+    return sb.from('orders').insert(payload).select().single();
   }
 
   let saved;
-  // сначала пробуем сохранить с «Источником»; если в таблице ещё нет колонки source — повторяем без него
-  let res = await write(true);
-  if (res.error && /source/i.test(res.error.message || '')) {
-    console.warn('Колонка source отсутствует в таблице orders — «Источник» не сохранён в облако');
-    res = await write(false);
+  let payload = { ...row };
+  let res = null;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    res = await write(payload);
+    if (!res.error) break;
+    // ищем в сообщении об ошибке имя отсутствующей колонки
+    const msg = res.error.message || '';
+    const matches = msg.match(/'([a-zA-Z_][a-zA-Z0-9_]*)'/g) || [];
+    let removed = false;
+    for (const m of matches) {
+      const col = m.slice(1, -1);
+      if (payload.hasOwnProperty(col)) {
+        console.warn('Колонки нет в таблице orders: ' + col + ' — сохраняю без неё');
+        delete payload[col];
+        removed = true;
+        break;
+      }
+    }
+    if (!removed) break;
   }
   if (res.error) { alert('Ошибка сохранения: ' + res.error.message); return; }
   saved = res.data;
