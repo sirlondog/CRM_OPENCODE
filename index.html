@@ -145,39 +145,27 @@
   .cust-phone { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
   .cust-login { font-size: 12px; color: var(--text-light); margin-top: 2px; font-style: italic; }
 
-  /* ===== КОНФИГУРАЦИЯ В ЗАКАЗЕ ===== */
-  .config-row { margin-bottom: 12px; }
-  .config-top { display: flex; gap: 8px; margin-bottom: 6px; }
-  .config-top .config-cat { flex: 1; min-width: 0; }
-  .config-bottom { display: flex; gap: 8px; }
-  .config-part { flex: 1; min-width: 0; }
-  .config-row select {
-    padding: 8px 10px; border: 1px solid var(--border);
+  /* ===== КОНФИГУРАЦИЯ В ЗАКАЗЕ (СТАТИЧНАЯ ТАБЛИЦА) ===== */
+  .config-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  .config-table th {
+    text-align: left; font-size: 11px; color: var(--text-muted);
+    padding: 4px 8px 6px; border-bottom: 1px solid var(--border);
+    font-weight: 600; text-transform: uppercase; letter-spacing: .4px;
+  }
+  .config-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .config-table tr:last-child td { border-bottom: none; }
+  .config-line { font-size: 13px; color: var(--text); white-space: nowrap; width: 34%; }
+  .config-table .config-part { width: 100%; min-width: 0; }
+  .config-table .config-cost { width: 100%; min-width: 0; }
+  .config-table select, .config-table input {
+    padding: 7px 10px; border: 1px solid var(--border);
     border-radius: 8px; font-size: 13px; font-family: inherit;
     background: var(--surface-2); color: var(--text);
   }
-  .config-extra { display: flex; gap: 8px; margin-top: 6px; }
-  .config-del {
-    background: none; border: 1px solid var(--border); color: var(--text-muted);
-    border-radius: 8px; cursor: pointer; padding: 0 12px; font-size: 14px;
-    flex: 0 0 auto; transition: .15s;
+  .config-table select:focus, .config-table input:focus {
+    outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(62,207,142,.12);
   }
-  .config-del:hover { background: rgba(229,72,77,.12); border-color: rgba(229,72,77,.4); color: var(--red); }
-  .config-qty, .config-cost {
-    padding: 8px 10px; border: 1px solid var(--border);
-    border-radius: 8px; font-size: 13px; font-family: inherit;
-    background: var(--surface-2); color: var(--text);
-  }
-  .config-qty { flex: 0 0 110px; }
-  .config-cost { flex: 1; min-width: 0; }
-  .config-cost::placeholder, .config-qty::placeholder { color: var(--text-muted); }
-  .config-qty:focus, .config-cost:focus, .config-row select:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(62,207,142,.12); }
-  .btn-config-add {
-    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 8px 14px; cursor: pointer; font-size: 13px; color: var(--text-light);
-    font-family: inherit; transition: .15s;
-  }
-  .btn-config-add:hover { background: var(--surface-3); color: var(--text); }
+  .config-cost::placeholder { color: var(--text-muted); }
   .config-sum {
     font-weight: 600; font-size: 13px; color: var(--text);
     margin-top: 10px; min-height: 18px; font-family: var(--mono);
@@ -279,7 +267,7 @@
   .modal {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 14px; padding: 28px;
-    width: 520px; max-width: 92vw; max-height: 90vh; overflow-y: auto;
+    width: 640px; max-width: 92vw; max-height: 90vh; overflow-y: auto;
     box-shadow: 0 24px 80px rgba(0,0,0,.6);
   }
   .modal h2 { font-size: 17px; margin-bottom: 18px; font-weight: 600; }
@@ -402,11 +390,13 @@
     <label for="fLogin">Логин</label>
     <input id="fLogin" type="text" name="customerLogin" autocomplete="off" placeholder="логин заказчика">
     <label>Конфигурация</label>
-    <div id="configRows"></div>
-    <button type="button" class="btn-config-add" onclick="addConfigRow()">+ Добавить позицию</button>
+    <table class="config-table">
+      <thead>
+        <tr><th>Категория</th><th>Деталь</th><th>Стоимость, ₽</th></tr>
+      </thead>
+      <tbody id="configTableBody"></tbody>
+    </table>
     <div class="config-sum" id="configSum"></div>
-    <div class="config-sum" id="configCost"></div>
-    <div class="config-sum config-profit" id="configProfit"></div>
     <label for="fComment">Комментарий</label>
     <textarea id="fComment" name="comment" autocomplete="off" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
     <label for="fStatus">Статус заказа</label>
@@ -801,101 +791,84 @@ document.getElementById('partOverlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closePartModal();
 });
 
-// ================= КОНФИГУРАЦИЯ В ЗАКАЗЕ =================
-// строки: категория → деталь из вкладки «Железо», внизу сумма выбранных
-function addConfigRow(saved) {
-  saved = saved || {};
-  const container = document.getElementById('configRows');
+// ================= КОНФИГУРАЦИЯ В ЗАКАЗЕ (СТАТИЧНАЯ ТАБЛИЦА) =================
+// Первый столбец — фиксированные строки, второй — деталь из базы «Железо»,
+// третий — стоимость вручную. Внизу сумма всех стоимостей.
+const CONFIG_LINES = [
+  { label: 'Процессор',          cats: ['Процессор'] },
+  { label: 'Видеокарта',         cats: ['Видеокарта'] },
+  { label: 'Материнская плата',  cats: ['Материнская плата'] },
+  { label: 'Оперативная память', cats: ['Оперативная память'] },
+  { label: 'Накопитель',         cats: ['Накопитель'] },
+  { label: 'Накопитель 2',       cats: ['Накопитель'] },
+  { label: 'Охлаждение',         cats: ['Воздушное охлаждение', 'Жидкостное охлаждение'] },
+  { label: 'Блок питания',       cats: ['Блок питания'] },
+  { label: 'Корпус',             cats: ['Корпус'] },
+  { label: 'Вентиляторы',        cats: ['Вентилятор'] }
+];
 
-  const row = document.createElement('div');
-  row.className = 'config-row';
-  const top = document.createElement('div');
-  top.className = 'config-top';
-  const bottom = document.createElement('div');
-  bottom.className = 'config-bottom';
-  const extra = document.createElement('div');
-  extra.className = 'config-extra';
+function buildConfigTable(savedList) {
+  savedList = savedList || [];
+  const pending = savedList.slice(); // не распределённые сохранённые позиции
+  const tbody = document.getElementById('configTableBody');
+  tbody.innerHTML = '';
 
-  const cat = document.createElement('select');
-  cat.className = 'config-cat';
-  cat.innerHTML = CATEGORIES.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
+  CONFIG_LINES.forEach(line => {
+    // сначала ищем сохранённую позицию именно этой строки, затем — по категориям старых заказов
+    let idx = pending.findIndex(it => it.line === line.label);
+    if (idx === -1) idx = pending.findIndex(it => line.cats.includes(it.category));
+    let saved = null;
+    if (idx !== -1) { saved = pending[idx]; pending.splice(idx, 1); }
 
-  const part = document.createElement('select');
-  part.className = 'config-part';
+    const tr = document.createElement('tr');
 
-  // закупочная стоимость позиции
-  const cost = document.createElement('input');
-  cost.type = 'number';
-  cost.className = 'config-cost';
-  cost.min = '0';
-  cost.step = '1';
-  cost.placeholder = 'Закупочная стоимость, ₽';
-  cost.value = (saved.cost != null && saved.cost !== '') ? saved.cost : '';
-  cost.oninput = updateConfigSum;
+    const tdLabel = document.createElement('td');
+    tdLabel.className = 'config-line';
+    tdLabel.textContent = line.label + ':';
 
-  // количество — только для вентиляторов
-  const qty = document.createElement('input');
-  qty.type = 'number';
-  qty.className = 'config-qty';
-  qty.min = '1';
-  qty.step = '1';
-  qty.value = saved.qty || 1;
-  qty.title = 'Количество';
-  qty.style.display = 'none';
-  qty.oninput = updateConfigSum;
+    const tdSel = document.createElement('td');
+    const sel = document.createElement('select');
+    sel.className = 'config-part';
 
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'config-del';
-  del.title = 'Убрать позицию';
-  del.textContent = '✕';
-  del.onclick = () => { row.remove(); updateConfigSum(); };
+    const tdCost = document.createElement('td');
+    const cost = document.createElement('input');
+    cost.type = 'number';
+    cost.className = 'config-cost';
+    cost.min = '0';
+    cost.step = '1';
+    cost.placeholder = '—';
 
-  function fillParts() {
-    const list = parts.filter(p => p.category === cat.value);
-    let html = '<option value="">— не выбрано —</option>';
-    list.forEach(p => {
-      html += '<option value="' + p.id + '" data-price="' + (p.price || 0) + '">' + esc(p.name) + '</option>';
-    });
-    // деталь была удалена из каталога после сохранения заказа — показываем её снимок
-    if (saved.partId && !list.some(p => String(p.id) === String(saved.partId))) {
-      html += '<option value="' + esc(saved.partId) + '" data-price="' + (saved.price || 0) + '">' +
-        esc(saved.name) + ' (нет в каталоге)</option>';
+    function fillParts() {
+      const list = parts.filter(p => line.cats.includes(p.category));
+      let html = '<option value="">— не выбрано —</option>';
+      list.forEach(p => {
+        html += '<option value="' + p.id + '">' + esc(p.name) + '</option>';
+      });
+      // деталь удалена из каталога после сохранения заказа — показываем снимок
+      if (saved && saved.partId && !list.some(p => String(p.id) === String(saved.partId))) {
+        html += '<option value="' + esc(saved.partId) + '">' + esc(saved.name) + ' (нет в каталоге)</option>';
+      }
+      sel.innerHTML = html;
+      if (saved && saved.partId) sel.value = String(saved.partId);
     }
-    part.innerHTML = html;
-    if (saved.partId) part.value = String(saved.partId);
-  }
 
-  function refreshQty() {
-    qty.style.display = (cat.value === 'Вентилятор') ? '' : 'none';
-  }
+    if (saved && saved.price) cost.value = saved.price;
+    fillParts();
 
-  cat.value = saved.category || CATEGORIES[0];
-  fillParts();
-  refreshQty();
+    sel.onchange = updateConfigSum;
+    cost.oninput = updateConfigSum;
 
-  cat.onchange = () => { saved = {}; fillParts(); refreshQty(); updateConfigSum(); };
-  part.onchange = updateConfigSum;
-
-  top.appendChild(cat);
-  top.appendChild(del);
-  bottom.appendChild(part);
-  extra.appendChild(qty);
-  extra.appendChild(cost);
-  row.appendChild(top);
-  row.appendChild(bottom);
-  row.appendChild(extra);
-  container.appendChild(row);
+    tdSel.appendChild(sel);
+    tdCost.appendChild(cost);
+    tr.appendChild(tdLabel);
+    tr.appendChild(tdSel);
+    tr.appendChild(tdCost);
+    tbody.appendChild(tr);
+  });
 }
 
-function rowQty(row) {
-  const qtyEl = row.querySelector('.config-qty');
-  if (!qtyEl || qtyEl.style.display === 'none') return 1;
-  return Math.max(1, parseInt(qtyEl.value, 10) || 1);
-}
-
-function rowCost(row) {
-  const costEl = row.querySelector('.config-cost');
+function rowCost(tr) {
+  const costEl = tr.querySelector('.config-cost');
   return Math.max(0, Number(costEl && costEl.value) || 0);
 }
 
@@ -904,50 +877,38 @@ function fmtMoney(n) {
 }
 
 function updateConfigSum() {
-  let sum = 0, costSum = 0, any = false;
-  document.querySelectorAll('#configRows .config-row').forEach(row => {
-    const sel = row.querySelector('.config-part');
-    if (!sel.value) return;
-    any = true;
-    const price = Number(sel.selectedOptions[0].dataset.price || 0);
-    sum += price * rowQty(row);
-    costSum += rowCost(row) * rowQty(row);
+  let sum = 0, any = false;
+  document.querySelectorAll('#configTableBody tr').forEach(tr => {
+    const c = rowCost(tr);
+    if (c > 0) { sum += c; any = true; }
   });
   document.getElementById('configSum').textContent =
     any ? 'Сумма конфигурации: ' + fmtMoney(sum) : '';
-  document.getElementById('configCost').textContent =
-    any ? 'Закупка: ' + fmtMoney(costSum) : '';
-  document.getElementById('configProfit').textContent =
-    any ? 'Прибыль: ' + fmtMoney(sum - costSum) : '';
 }
 
 function collectConfig() {
   const out = [];
-  document.querySelectorAll('#configRows .config-row').forEach(row => {
-    const cat = row.querySelector('.config-cat').value;
-    const sel = row.querySelector('.config-part');
-    if (!sel.value) return;
+  document.querySelectorAll('#configTableBody tr').forEach((tr, i) => {
+    const line = CONFIG_LINES[i];
+    const sel = tr.querySelector('.config-part');
+    const cost = rowCost(tr);
+    if (!sel.value && !cost) return;
     const opt = sel.selectedOptions[0];
     const p = parts.find(x => String(x.id) === String(sel.value));
     out.push({
-      partId: sel.value,
-      category: cat,
-      name: p ? p.name : opt.textContent.replace(' (нет в каталоге)', ''),
-      price: Number(opt.dataset.price || 0),
-      cost: rowCost(row),
-      qty: rowQty(row)
+      line: line.label,
+      category: line.label,
+      partId: sel.value || '',
+      name: sel.value ? (p ? p.name : opt.textContent.replace(' (нет в каталоге)', '')) : '',
+      price: cost,
+      qty: 1
     });
   });
   return out;
 }
 
 function resetConfigRows(list) {
-  document.getElementById('configRows').innerHTML = '';
-  if (list && list.length) {
-    list.forEach(item => addConfigRow(item));
-  } else {
-    addConfigRow(); // одна пустая строка для начала
-  }
+  buildConfigTable(list || []);
   updateConfigSum();
 }
 
