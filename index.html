@@ -358,6 +358,24 @@
   .btn-cancel { background: var(--surface-2); color: var(--text-light); border: 1px solid var(--border) !important; }
   .btn-cancel:hover { background: var(--surface-3); color: var(--text); }
 
+  /* ===== СКЛАД ===== */
+  .stock-rel-list { max-height: 170px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 6px; padding: 4px; background: var(--bg); }
+  .stock-rel-item { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  .stock-rel-item:hover { background: var(--surface-2); }
+  .stock-rel-item input[type="checkbox"] { width: auto !important; margin: 0; accent-color: var(--green); }
+  .stock-rel-empty { color: var(--text-muted); font-size: 12px; padding: 8px; }
+  .stock-selected { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .stock-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); font-size: 12px; }
+  .stock-chip button { border: 0; background: none; color: var(--text-muted); font-size: 16px; line-height: 1; cursor: pointer; }
+  .stock-chip button:hover { color: var(--red); }
+  .stock-file-label { margin-top: 12px !important; }
+  .stock-files { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .stock-file { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .stock-file a { color: var(--green); text-decoration: underline; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stock-file-size { color: var(--text-muted); font-size: 12px; }
+  .stock-file button { margin-left: auto; border: 0; background: none; color: var(--text-muted); font-size: 18px; cursor: pointer; }
+  .stock-file button:hover { color: var(--red); }
+
   /* ===== МОБИЛЬНАЯ ВЕРСИЯ ===== */
   @media (max-width: 640px) {
     /* статистику (активных, согласование, в работе) не показываем */
@@ -415,6 +433,7 @@
         <button class="tab-btn active" id="tabOrders" onclick="switchTab('orders')">Заказы</button>
         <button class="tab-btn" id="tabArchive" onclick="switchTab('archive')">Архив</button>
         <button class="tab-btn" id="tabParts" onclick="switchTab('parts')">Железо</button>
+        <button class="tab-btn" id="tabStock" style="display:none" onclick="switchTab('stock')">Склад</button>
         <button class="btn-add" id="btnAddPart" style="display:none" onclick="openPartModal()"><span class="btn-part-full">+ Добавить деталь</span><span class="btn-part-plus">+</span></button>
       </div>
       <div style="display:flex; align-items:center; gap:16px;">
@@ -424,6 +443,7 @@
         <datalist id="partsDatalist"></datalist>
         <select class="filter-select" id="partFilter" onchange="render()"></select>
         <button class="btn-add" id="btnAddOrder" title="Добавить заказ" onclick="openAddModal()"><span class="btn-part-full">+ Добавить заказ</span><span class="btn-part-plus">+</span></button>
+        <button class="btn-add" id="btnAddStock" style="display:none" title="Добавить позицию на склад" onclick="openStockModal()"><span class="btn-part-full">+ Добавить позицию</span><span class="btn-part-plus">+</span></button>
       </div>
     </div>
 
@@ -451,6 +471,47 @@
     <div class="modal-buttons">
       <button class="btn-cancel" onclick="closePartModal()">Отмена</button>
       <button class="btn-save" onclick="savePart()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА СКЛАДА ============ -->
+<div class="modal-overlay" id="stockOverlay">
+  <div class="modal">
+    <h2 id="stockModalTitle">Новая позиция</h2>
+
+    <label>Дата</label>
+    <div class="number-row">
+      <input id="sDate" type="date">
+      <label class="manual-check"><input type="checkbox" id="sDateManual"> Указать вручную</label>
+    </div>
+
+    <label for="sPosition">Позиция (модель из «Железо»)</label>
+    <select id="sPosition"></select>
+
+    <label for="sSerial">Серийный номер</label>
+    <input id="sSerial" type="text" autocomplete="off" placeholder="Например: 1234567890">
+
+    <label for="sCost">Стоимость</label>
+    <input id="sCost" type="text" autocomplete="off" placeholder="Например: 45 000 ₽">
+
+    <label for="sOrderSearch">Связан с заказами</label>
+    <input id="sOrderSearch" type="search" autocomplete="off" placeholder="Поиск по номеру, имени или логину" oninput="renderStockRel()">
+    <div class="stock-rel-list" id="sOrderResults"></div>
+    <div class="stock-selected" id="sOrderSelected"></div>
+
+    <label for="sWarranty">Гарантия</label>
+    <input id="sWarranty" type="text" autocomplete="off" placeholder="Например: 12 месяцев">
+
+    <label for="sCheckText">Чек (описание)</label>
+    <input id="sCheckText" type="text" autocomplete="off" placeholder="Например: чек №123 от 19.11.2026">
+    <label class="stock-file-label" for="stockFileInput">Прикрепить файлы чека</label>
+    <input id="stockFileInput" type="file" multiple accept="image/*,.pdf" onchange="addStockFiles(this.files)">
+    <div class="stock-files" id="sFiles"></div>
+
+    <div class="modal-buttons">
+      <button class="btn-cancel" onclick="closeStockModal()">Отмена</button>
+      <button class="btn-save" onclick="saveStockItem()">Сохранить</button>
     </div>
   </div>
 </div>
@@ -575,6 +636,8 @@ async function loadAll() {
   parts = pRows;
   const nn = sRows.find(x => x.key === 'nextnum');
   nextNum = nn ? (Number(nn.value) || 1) : 1;
+  const sr = sRows.find(x => x.key === 'stock_items');
+  stock = parseStockValue(sr && sr.value);
 }
 
 // Разовый перенос данных из localStorage старой версии в облако
@@ -708,6 +771,7 @@ async function enterApp() {
   if (login) login.remove();
   document.getElementById('app').style.display = 'block';
   await refreshCurrentUserLabel();
+  updateAdminUI();
   await migrateLocalData();
   await loadAll();
   render();
@@ -720,11 +784,15 @@ function switchTab(tab) {
   document.getElementById('tabOrders').classList.toggle('active', tab === 'orders');
   document.getElementById('tabArchive').classList.toggle('active', tab === 'archive');
   document.getElementById('tabParts').classList.toggle('active', tab === 'parts');
+  document.getElementById('tabStock').classList.toggle('active', tab === 'stock');
   const isParts = tab === 'parts';
+  const isStock = tab === 'stock' && isAdmin();
   document.getElementById('partFilter').style.display = isParts ? 'inline-block' : 'none';
   document.getElementById('partSearch').style.display = isParts ? 'inline-block' : 'none';
-  document.getElementById('btnAddOrder').style.display = isParts ? 'none' : 'inline-block';
+  document.getElementById('btnAddOrder').style.display = (isParts || isStock) ? 'none' : 'inline-block';
   document.getElementById('btnAddPart').style.display = isParts ? 'inline-block' : 'none';
+  document.getElementById('btnAddStock').style.display = isStock ? 'inline-block' : 'none';
+  document.getElementById('stats').style.display = isStock ? 'none' : '';
   render();
 }
 
@@ -750,6 +818,7 @@ function configTotal(o) {
 
 function render() {
   if (currentTab === 'parts') { renderParts(); return; }
+  if (currentTab === 'stock') { renderStock(); return; }
   document.getElementById('tableHead').innerHTML = ORDERS_HEAD;
   const isArchive = currentTab === 'archive';
   // сортировка по номеру заказа: чем больше номер, тем выше в списке
@@ -1541,6 +1610,228 @@ async function saveOrder() {
 // (клик по фону игнорируется, обработчик не ставим)
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeStatusMenu(); closePartModal(); }
+});
+
+// ================= СКЛАД (только для логина admin) =================
+let stock = [];                 // позиции склада
+let stockEditId = null;         // id редактируемой позиции
+let stockRelated = [];          // выбранные id заказов
+let stockFiles = [];            // файлы чека {name, mime, size, data}
+
+function isAdmin() { return currentUserLabelStr === 'admin'; }
+
+function updateAdminUI() {
+  const on = isAdmin();
+  document.getElementById('tabStock').style.display = on ? '' : 'none';
+  if (!on && currentTab === 'stock') switchTab('orders');
+  else document.getElementById('btnAddStock').style.display =
+    (on && currentTab === 'stock') ? 'inline-block' : 'none';
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+    '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function parseStockValue(v) {
+  if (!v) return [];
+  try {
+    const o = JSON.parse(v);
+    return Array.isArray(o) ? o : (Array.isArray(o.items) ? o.items : []);
+  } catch (e) { return []; }
+}
+
+async function saveStockValue() {
+  const { error } = await sb.from('settings')
+    .upsert({ key: 'stock_items', value: JSON.stringify({ items: stock }) });
+  if (error) throw new Error(error.message);
+}
+
+function partName(id) {
+  const p = parts.find(x => String(x.id) === String(id));
+  return p ? p.name : '—';
+}
+function orderById(id) {
+  return orders.find(x => x.id === id) || archived.find(x => x.id === id);
+}
+
+function renderStock() {
+  if (!isAdmin()) { switchTab('orders'); return; }
+  document.getElementById('tableHead').innerHTML =
+    '<tr><th>Дата</th><th>Позиция</th><th>Серийный номер</th><th>Стоимость</th>' +
+    '<th>Связан с заказами</th><th>Гарантия</th><th>Чек</th><th></th></tr>';
+  const tbody = document.getElementById('tableBody');
+  if (!stock.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Склад пуст — нажмите «+ Добавить позицию»</td></tr>';
+    return;
+  }
+  const sorted = stock.slice().sort((a, b) =>
+    String(b.date || '').localeCompare(String(a.date || '')) || (b.id - a.id));
+  tbody.innerHTML = sorted.map(s => {
+    const rel = (s.related || []).map(id => orderById(id)).filter(Boolean);
+    const relHtml = rel.length
+      ? rel.map(o => '<a class="order-num" title="Открыть заказ" onclick="event.stopPropagation();openOrderCard(' + o.id + ')">№' + esc(o.number) + '</a>').join(', ')
+      : '—';
+    const files = s.files || [];
+    let checkHtml = s.checkText ? esc(s.checkText) : '';
+    if (files.length) checkHtml += (checkHtml ? '<br>' : '') + '📎 ' + files.length;
+    return '<tr style="cursor:pointer" onclick="openStockModal(' + s.id + ')">' +
+      '<td>' + esc(fmtDate(s.date)) + '</td>' +
+      '<td>' + esc(partName(s.position)) + '</td>' +
+      '<td>' + esc(s.serial || '—') + '</td>' +
+      '<td>' + esc(s.cost || '—') + '</td>' +
+      '<td>' + relHtml + '</td>' +
+      '<td>' + esc(s.warranty || '—') + '</td>' +
+      '<td>' + (checkHtml || '—') + '</td>' +
+      '<td><button class="btn-copy" title="Удалить позицию" onclick="event.stopPropagation();deleteStockItem(' + s.id + ')">🗑</button></td>' +
+      '</tr>';
+  }).join('');
+}
+
+async function openStockModal(id) {
+  if (!isAdmin()) return;
+  stockEditId = id || null;
+  const s = id ? stock.find(x => x.id === id) : null;
+  document.getElementById('stockModalTitle').textContent = s ? 'Редактировать позицию' : 'Новая позиция';
+  document.getElementById('sDateManual').checked = s ? !!s.dateManual : false;
+  document.getElementById('sDate').value = s ? (s.date || '') : todayStr();
+  document.getElementById('sDate').readOnly = !document.getElementById('sDateManual').checked;
+
+  const sel = document.getElementById('sPosition');
+  sel.innerHTML = '<option value="">— выберите модель —</option>' +
+    parts.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'ru'))
+      .map(p => '<option value="' + p.id + '">' +
+        esc(p.category ? p.category + ': ' : '') + esc(p.name) + '</option>').join('');
+  sel.value = s ? String(s.position || '') : '';
+
+  document.getElementById('sSerial').value = s ? (s.serial || '') : '';
+  document.getElementById('sCost').value = s ? (s.cost || '') : '';
+  document.getElementById('sWarranty').value = s ? (s.warranty || '') : '';
+  document.getElementById('sCheckText').value = s ? (s.checkText || '') : '';
+
+  stockRelated = s ? (s.related || []).slice() : [];
+  stockFiles = s ? (s.files || []).map(f => Object.assign({}, f)) : [];
+  document.getElementById('sOrderSearch').value = '';
+  document.getElementById('stockFileInput').value = '';
+  renderStockRel();
+  renderStockFiles();
+  document.getElementById('stockOverlay').classList.add('open');
+}
+
+function closeStockModal() {
+  document.getElementById('stockOverlay').classList.remove('open');
+}
+
+function renderStockRel() {
+  const q = (document.getElementById('sOrderSearch').value || '').trim().toLowerCase();
+  const all = orders.concat(archived);
+  const found = q ? all.filter(o =>
+    [o.number, o.name, o.login, o.phone].some(v => String(v || '').toLowerCase().indexOf(q) >= 0)
+  ).slice(0, 30) : [];
+  document.getElementById('sOrderResults').innerHTML = !q
+    ? '<div class="stock-rel-empty">Введите номер, имя или логин заказчика</div>'
+    : (found.length
+      ? found.map(o => '<label class="stock-rel-item"><input type="checkbox" ' +
+          (stockRelated.indexOf(o.id) >= 0 ? 'checked' : '') +
+          ' onchange="toggleStockRel(' + o.id + ',this.checked)"> <span>№' + esc(o.number) +
+          ' — ' + esc(o.name) + '</span></label>').join('')
+      : '<div class="stock-rel-empty">Ничего не найдено</div>');
+  document.getElementById('sOrderSelected').innerHTML = stockRelated.length
+    ? stockRelated.map(id => {
+        const o = orderById(id);
+        return '<span class="stock-chip">№' + esc(o ? o.number : id) +
+          ' <button type="button" title="Отвязать" onclick="toggleStockRel(' + id + ',false)">×</button></span>';
+      }).join('')
+    : '';
+}
+
+function toggleStockRel(id, on) {
+  if (on) { if (stockRelated.indexOf(id) < 0) stockRelated.push(id); }
+  else stockRelated = stockRelated.filter(x => x !== id);
+  renderStockRel();
+}
+
+function renderStockFiles() {
+  document.getElementById('sFiles').innerHTML = stockFiles.length
+    ? stockFiles.map((f, i) =>
+        '<div class="stock-file"><a href="data:' + esc(f.mime) + ';base64,' + f.data +
+        '" download="' + esc(f.name) + '">' + esc(f.name) + '</a>' +
+        '<span class="stock-file-size">' + Math.round((f.size || 0) / 1024) + ' КБ</span>' +
+        '<button type="button" title="Удалить файл" onclick="removeStockFile(' + i + ')">×</button></div>'
+      ).join('')
+    : '<div class="stock-rel-empty">Файлы не прикреплены</div>';
+}
+
+function removeStockFile(i) {
+  stockFiles.splice(i, 1);
+  renderStockFiles();
+}
+
+async function addStockFiles(list) {
+  for (const file of Array.from(list || [])) {
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Файл «' + file.name + '» больше 2 МБ — пропущен. Уменьшите фото перед загрузкой.');
+      continue;
+    }
+    const data = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1] || '');
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+    stockFiles.push({
+      name: file.name,
+      mime: file.type || 'application/octet-stream',
+      size: file.size,
+      data: data
+    });
+  }
+  renderStockFiles();
+}
+
+async function saveStockItem() {
+  if (!isAdmin()) return;
+  const dateManual = document.getElementById('sDateManual').checked;
+  const date = dateManual ? document.getElementById('sDate').value : todayStr();
+  if (!date) { alert('Укажите дату'); return; }
+  const item = {
+    id: stockEditId || Date.now(),
+    date: date,
+    dateManual: dateManual,
+    position: document.getElementById('sPosition').value,
+    serial: document.getElementById('sSerial').value.trim(),
+    cost: document.getElementById('sCost').value.trim(),
+    related: stockRelated.slice(),
+    warranty: document.getElementById('sWarranty').value.trim(),
+    checkText: document.getElementById('sCheckText').value.trim(),
+    files: stockFiles.slice()
+  };
+  if (stockEditId) stock = stock.map(x => x.id === stockEditId ? item : x);
+  else stock.push(item);
+  try { await saveStockValue(); }
+  catch (e) { alert('Ошибка сохранения: ' + e.message); return; }
+  closeStockModal();
+  render();
+}
+
+function deleteStockItem(id) {
+  if (!isAdmin()) return;
+  if (!confirm('Удалить позицию со склада?')) return;
+  stock = stock.filter(x => x.id !== id);
+  saveStockValue().then(() => render()).catch(e => alert('Ошибка: ' + e.message));
+}
+
+// Галочка «Указать вручную» разрешает редактировать дату; без неё дата = сегодня
+document.getElementById('sDateManual').addEventListener('change', function () {
+  const d = document.getElementById('sDate');
+  d.readOnly = !this.checked;
+  if (!this.checked) d.value = todayStr();
+});
+// Если дату всё же поменяли — ставим галочку сами
+document.getElementById('sDate').addEventListener('change', () => {
+  document.getElementById('sDateManual').checked = true;
+  document.getElementById('sDate').readOnly = false;
 });
 
 // ================= АВТОВХОД =================
