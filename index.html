@@ -387,6 +387,14 @@
   .stock-suggest-item:hover, .stock-suggest-item.active { background: var(--surface-2); color: var(--green); }
   .stock-suggest-empty { color: var(--text-muted); font-size: 12px; padding: 10px; }
   .stock-suggest mark { background: rgba(62,207,142,.25); color: var(--green); border-radius: 2px; }
+  .stock-actions { display: none; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .stock-selected-count { color: var(--text-light); font-size: 13px; }
+  .btn-stock-act { padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); font-size: 13px; cursor: pointer; }
+  .btn-stock-act:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+  .btn-stock-act.danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+  .btn-stock-act:disabled { opacity: .4; cursor: not-allowed; }
+  .stock-check { width: auto !important; margin: 0; accent-color: var(--green); }
+  .stock-hint { color: var(--text-muted); font-size: 12px; margin-top: 4px; min-height: 15px; }
 
   /* ===== МОБИЛЬНАЯ ВЕРСИЯ ===== */
   @media (max-width: 640px) {
@@ -459,6 +467,12 @@
       </div>
     </div>
 
+    <div class="stock-actions" id="stockActions">
+      <span class="stock-selected-count" id="stockSelectedCount">Выбрано: 0</span>
+      <button class="btn-stock-act" id="btnStockDuplicate" onclick="duplicateSelectedStock()">Дублировать</button>
+      <button class="btn-stock-act danger" id="btnStockDelete" onclick="deleteSelectedStock()">Удалить</button>
+    </div>
+
     <div class="card">
       <table>
         <thead id="tableHead"></thead>
@@ -519,7 +533,10 @@
     <div class="stock-selected" id="sOrderSelected"></div>
 
     <label for="sWarranty">Гарантия</label>
-    <input id="sWarranty" type="text" autocomplete="off" placeholder="Например: 12 месяцев">
+    <input id="sWarranty" type="text" autocomplete="off"
+           placeholder="Например: 2 года, 60 мес или до 19.07.2028"
+           oninput="previewWarranty()" onblur="applyWarranty()">
+    <div class="stock-hint" id="sWarrantyHint"></div>
 
     <label for="sCheckText">Чек (описание)</label>
     <input id="sCheckText" type="text" autocomplete="off" placeholder="Например: чек №123 от 19.11.2026">
@@ -810,7 +827,9 @@ function switchTab(tab) {
   document.getElementById('btnAddOrder').style.display = (isParts || isStock) ? 'none' : 'inline-block';
   document.getElementById('btnAddPart').style.display = isParts ? 'inline-block' : 'none';
   document.getElementById('btnAddStock').style.display = isStock ? 'inline-block' : 'none';
+  document.getElementById('stockActions').style.display = isStock ? 'flex' : 'none';
   document.getElementById('stats').style.display = isStock ? 'none' : '';
+  if (!isStock) stockSelected.clear();
   render();
 }
 
@@ -1637,12 +1656,14 @@ let stockRelated = [];          // выбранные id заказов
 let stockFiles = [];            // файлы чека {name, mime, size, data}
 let posSuggest = [];            // подсказки моделей из «Железо»
 let posActive = -1;             // активная подсказка при выборе стрелками
+let stockSelected = new Set();  // отмеченные галочками позиции склада
 
 function isAdmin() { return currentUserLabelStr === 'admin'; }
 
 function updateAdminUI() {
   const on = isAdmin();
   document.getElementById('tabStock').style.display = on ? '' : 'none';
+  if (!on) document.getElementById('stockActions').style.display = 'none';
   if (!on && currentTab === 'stock') switchTab('orders');
   else document.getElementById('btnAddStock').style.display =
     (on && currentTab === 'stock') ? 'inline-block' : 'none';
@@ -1681,12 +1702,16 @@ function orderById(id) {
 
 function renderStock() {
   if (!isAdmin()) { switchTab('orders'); return; }
+  stockSelected = new Set(Array.from(stockSelected).filter(id => stock.some(s => s.id === id)));
   document.getElementById('tableHead').innerHTML =
-    '<tr><th>Дата</th><th>Позиция</th><th>Серийный номер</th><th>Стоимость</th>' +
+    '<tr><th style="width:34px"><input type="checkbox" class="stock-check" id="stockCheckAll" ' +
+      'onchange="toggleAllStock(this.checked)" title="Выбрать все"></th>' +
+    '<th>Дата</th><th>Позиция</th><th>Серийный номер</th><th>Стоимость</th>' +
     '<th>Связан с заказами</th><th>Гарантия</th><th>Чек</th><th></th></tr>';
   const tbody = document.getElementById('tableBody');
+  updateStockActions();
   if (!stock.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Склад пуст — нажмите «+ Добавить позицию»</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Склад пуст — нажмите «+ Добавить позицию»</td></tr>';
     return;
   }
   const sorted = stock.slice().sort((a, b) =>
@@ -1700,6 +1725,9 @@ function renderStock() {
     let checkHtml = s.checkText ? esc(s.checkText) : '';
     if (files.length) checkHtml += (checkHtml ? '<br>' : '') + '📎 ' + files.length;
     return '<tr style="cursor:pointer" onclick="openStockModal(' + s.id + ')">' +
+      '<td><input type="checkbox" class="stock-check" value="' + s.id + '" ' +
+        (stockSelected.has(s.id) ? 'checked' : '') +
+        ' onclick="event.stopPropagation();toggleStockCheck(' + s.id + ',this.checked)"></td>' +
       '<td>' + esc(fmtDate(s.date)) + '</td>' +
       '<td>' + esc(partName(s.position)) + '</td>' +
       '<td>' + esc(s.serial || '—') + '</td>' +
@@ -1710,6 +1738,52 @@ function renderStock() {
       '<td><button class="btn-copy" title="Удалить позицию" onclick="event.stopPropagation();deleteStockItem(' + s.id + ')">🗑</button></td>' +
       '</tr>';
   }).join('');
+  const all = document.getElementById('stockCheckAll');
+  if (all) all.checked = stock.length > 0 && stock.every(s => stockSelected.has(s.id));
+}
+
+function updateStockActions() {
+  const n = stockSelected.size;
+  document.getElementById('stockSelectedCount').textContent = 'Выбрано: ' + n;
+  document.getElementById('btnStockDuplicate').disabled = n === 0;
+  document.getElementById('btnStockDelete').disabled = n === 0;
+}
+function toggleStockCheck(id, on) {
+  if (on) stockSelected.add(id); else stockSelected.delete(id);
+  const all = document.getElementById('stockCheckAll');
+  if (all) all.checked = stock.length > 0 && stock.every(s => stockSelected.has(s.id));
+  updateStockActions();
+}
+function toggleAllStock(on) {
+  if (on) stock.forEach(s => stockSelected.add(s.id));
+  else stockSelected.clear();
+  document.querySelectorAll('#tableBody .stock-check').forEach(c => { c.checked = on; });
+  updateStockActions();
+}
+function deleteSelectedStock() {
+  if (!isAdmin()) return;
+  const ids = Array.from(stockSelected);
+  if (!ids.length) { alert('Отметьте позиции галочками'); return; }
+  if (!confirm('Удалить выбранных позиций: ' + ids.length + '?')) return;
+  stock = stock.filter(x => ids.indexOf(x.id) < 0);
+  stockSelected.clear();
+  saveStockValue().then(() => render()).catch(e => alert('Ошибка: ' + e.message));
+}
+function duplicateSelectedStock() {
+  if (!isAdmin()) return;
+  const ids = Array.from(stockSelected);
+  if (!ids.length) { alert('Отметьте позицию галочкой'); return; }
+  if (ids.length > 1) { alert('Дублировать можно только одну позицию за раз'); return; }
+  const src = stock.find(x => x.id === ids[0]);
+  if (!src) return;
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = Math.max(Date.now(), ...stock.map(x => Number(x.id) || 0)) + 1;
+  if (copy.serial) copy.serial += ' (копия)';
+  stock.push(copy);
+  stockSelected.clear();
+  saveStockValue()
+    .then(() => { render(); openStockModal(copy.id); })
+    .catch(e => alert('Ошибка: ' + e.message));
 }
 
 // ---- Подсказки по моделям из «Железо» (поиск посимвольно) ----
@@ -1781,6 +1855,54 @@ function onPositionKey(e) {
   }
 }
 
+// ---- Гарантия: всё приводим к виду «До ДД.ММ.ГГГГ» ----
+function pad2(n) { return String(n).padStart(2, '0'); }
+function warrantyFromBase(baseDate, months) {
+  let y = new Date().getFullYear(), m = new Date().getMonth() + 1, d = new Date().getDate();
+  const parts = String(baseDate || '').split('-').map(Number);
+  if (parts.length === 3 && parts[0] > 1900 && parts[1] >= 1 && parts[1] <= 12 && parts[2] >= 1 && parts[2] <= 31) {
+    y = parts[0]; m = parts[1]; d = parts[2];
+  }
+  const dt = new Date(y, m - 1 + months, 1);
+  const last = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+  dt.setDate(Math.min(d, last));
+  return 'До ' + pad2(dt.getDate()) + '.' + pad2(dt.getMonth() + 1) + '.' + dt.getFullYear();
+}
+function normalizeWarranty(raw, baseDate) {
+  const s = String(raw || '').trim().replace(/\s+/g, ' ');
+  if (!s) return '';
+  const low = s.toLowerCase().replace(/ё/g, 'е');
+  // уже дата: «до 19.07.2028», «19.07.2028»
+  let m = low.match(/(?:до\s*)?(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+  if (m) {
+    let yr = m[3];
+    if (yr.length === 2) yr = '20' + yr;
+    return 'До ' + pad2(m[1]) + '.' + pad2(m[2]) + '.' + yr;
+  }
+  // года: «2 года», «1 год», «5 лет», «2 г.», «1,5 года»
+  m = low.match(/^(\d+(?:[.,]\d+)?)\s*(года|год|лет|г\.|г)$/);
+  if (m) return warrantyFromBase(baseDate, Math.round(parseFloat(m[1].replace(',', '.')) * 12));
+  // месяцы: «60 мес», «60 месяцев», «12 мес.», «6 месяцев»
+  m = low.match(/^(\d+(?:[.,]\d+)?)\s*(месяцев|месяца|месяц|мес\.|мес)$/);
+  if (m) return warrantyFromBase(baseDate, Math.round(parseFloat(m[1].replace(',', '.'))));
+  return s;
+}
+function warrantyBaseDate() {
+  const d = document.getElementById('sDate').value;
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : todayStr();
+}
+function previewWarranty() {
+  const raw = document.getElementById('sWarranty').value;
+  const res = normalizeWarranty(raw, warrantyBaseDate());
+  document.getElementById('sWarrantyHint').textContent =
+    (res && res !== raw.trim()) ? 'Будет сохранено: ' + res : '';
+}
+function applyWarranty() {
+  const inp = document.getElementById('sWarranty');
+  inp.value = normalizeWarranty(inp.value, warrantyBaseDate());
+  previewWarranty();
+}
+
 async function openStockModal(id) {
   if (!isAdmin()) return;
   stockEditId = id || null;
@@ -1808,7 +1930,12 @@ async function openStockModal(id) {
   document.getElementById('stockFileInput').value = '';
   renderStockRel();
   renderStockFiles();
+  previewWarranty();
   document.getElementById('stockOverlay').classList.add('open');
+  if (!s) setTimeout(() => {
+    document.getElementById('sPosition').focus();
+    renderPositionSuggest();
+  }, 60);
 }
 
 function closeStockModal() {
@@ -1897,7 +2024,7 @@ async function saveStockItem() {
     serial: document.getElementById('sSerial').value.trim(),
     cost: document.getElementById('sCost').value.trim(),
     related: stockRelated.slice(),
-    warranty: document.getElementById('sWarranty').value.trim(),
+    warranty: normalizeWarranty(document.getElementById('sWarranty').value.trim(), date),
     checkText: document.getElementById('sCheckText').value.trim(),
     files: stockFiles.slice()
   };
@@ -1921,11 +2048,13 @@ document.getElementById('sDateManual').addEventListener('change', function () {
   const d = document.getElementById('sDate');
   d.readOnly = !this.checked;
   if (!this.checked) d.value = todayStr();
+  previewWarranty();
 });
 // Если дату всё же поменяли — ставим галочку сами
 document.getElementById('sDate').addEventListener('change', () => {
   document.getElementById('sDateManual').checked = true;
   document.getElementById('sDate').readOnly = false;
+  previewWarranty();
 });
 
 // ================= АВТОВХОД =================
