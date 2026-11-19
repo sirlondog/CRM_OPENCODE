@@ -399,6 +399,20 @@
   .stock-view-btn:not(.active):hover { background: var(--surface-2); color: var(--text); }
   .stock-view-btn span { opacity: .8; }
   .stock-search-input { display: block; width: 260px; }
+  .dashboard { display: none; }
+  .dash-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .dash-controls label { font-size: 13px; color: var(--text-light); }
+  .dash-month { display: inline-block; min-width: 180px; }
+  .dash-cards { display: flex; gap: 16px; flex-wrap: wrap; }
+  .dash-card {
+    flex: 1 1 260px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px 24px; box-shadow: 0 8px 30px rgba(0,0,0,.35);
+  }
+  .dash-card.accent { border-color: var(--green); }
+  .dash-label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
+  .dash-value { margin-top: 10px; font-size: 32px; font-weight: 600; font-family: var(--mono); color: var(--text); }
+  .dash-card.accent .dash-value { color: var(--green); }
+  .dash-note { margin-top: 14px; font-size: 12px; color: var(--text-muted); }
   .stock-check { width: auto !important; margin: 0; accent-color: var(--green); }
   .stock-hint { color: var(--text-muted); font-size: 12px; margin-top: 4px; min-height: 15px; }
   .stock-more { margin-top: 8px; border: 1px solid var(--border-soft); border-radius: 8px; padding: 5px 10px; background: var(--bg); }
@@ -467,6 +481,7 @@
         <button class="tab-btn" id="tabArchive" onclick="switchTab('archive')">Архив</button>
         <button class="tab-btn" id="tabParts" onclick="switchTab('parts')">Железо</button>
         <button class="tab-btn" id="tabStock" style="display:none" onclick="switchTab('stock')">Склад</button>
+        <button class="tab-btn" id="tabDashboard" style="display:none" onclick="switchTab('dashboard')">Дашборд</button>
         <button class="btn-add" id="btnAddPart" style="display:none" onclick="openPartModal()"><span class="btn-part-full">+ Добавить деталь</span><span class="btn-part-plus">+</span></button>
       </div>
       <div style="display:flex; align-items:center; gap:16px;">
@@ -498,7 +513,25 @@
       <button class="btn-stock-act danger" id="btnStockDelete" onclick="deleteSelectedStock()">Удалить</button>
     </div>
 
-    <div class="card">
+    <div class="dashboard" id="dashboardView">
+      <div class="dash-controls">
+        <label for="dashMonth">Месяц</label>
+        <select id="dashMonth" class="filter-select dash-month" onchange="renderDashboard()"></select>
+      </div>
+      <div class="dash-cards">
+        <div class="dash-card">
+          <div class="dash-label">Закрытых заказов</div>
+          <div class="dash-value" id="dashOrders">0</div>
+        </div>
+        <div class="dash-card accent">
+          <div class="dash-label">Прибыль</div>
+          <div class="dash-value" id="dashProfit">0 ₽</div>
+        </div>
+      </div>
+      <div class="dash-note">Прибыль = сумма выбранных термопаст MX в закрытых заказах за выбранный месяц.</div>
+    </div>
+
+    <div class="card" id="mainCard">
       <table>
         <thead id="tableHead"></thead>
         <tbody id="tableBody"></tbody>
@@ -861,18 +894,22 @@ function switchTab(tab) {
   document.getElementById('tabArchive').classList.toggle('active', tab === 'archive');
   document.getElementById('tabParts').classList.toggle('active', tab === 'parts');
   document.getElementById('tabStock').classList.toggle('active', tab === 'stock');
+  document.getElementById('tabDashboard').classList.toggle('active', tab === 'dashboard');
   const isParts = tab === 'parts';
   const isStock = tab === 'stock' && isAdmin();
+  const isDash = tab === 'dashboard' && isAdmin();
   document.getElementById('partFilter').style.display = isParts ? 'inline-block' : 'none';
   document.getElementById('partSearch').style.display = isParts ? 'inline-block' : 'none';
-  document.getElementById('btnAddOrder').style.display = (isParts || isStock) ? 'none' : 'inline-block';
+  document.getElementById('btnAddOrder').style.display = (isParts || isStock || isDash) ? 'none' : 'inline-block';
   document.getElementById('btnAddPart').style.display = isParts ? 'inline-block' : 'none';
   document.getElementById('btnAddStock').style.display =
     (isStock && !stockArchiveView) ? 'inline-block' : 'none';
   document.getElementById('stockActions').style.display = isStock ? 'flex' : 'none';
   document.getElementById('stockViewActive').classList.toggle('active', !stockArchiveView);
   document.getElementById('stockViewArchive').classList.toggle('active', stockArchiveView);
-  document.getElementById('stats').style.display = isStock ? 'none' : '';
+  document.getElementById('dashboardView').style.display = isDash ? 'block' : 'none';
+  document.getElementById('mainCard').style.display = isDash ? 'none' : '';
+  document.getElementById('stats').style.display = (isStock || isDash) ? 'none' : '';
   if (!isStock) {
     stockSelected.clear(); stockArchiveView = false;
     document.getElementById('stockSearch').value = '';
@@ -904,6 +941,7 @@ function configTotal(o) {
 function render() {
   if (currentTab === 'parts') { renderParts(); return; }
   if (currentTab === 'stock') { renderStock(); return; }
+  if (currentTab === 'dashboard') { renderDashboard(); return; }
   document.getElementById('tableHead').innerHTML = ORDERS_HEAD;
   const isArchive = currentTab === 'archive';
   // сортировка по номеру заказа: чем больше номер, тем выше в списке
@@ -1193,6 +1231,65 @@ const CONFIG_LINES = [
   { label: 'Корпус',             cats: ['Корпус'] },
   { label: 'Вентиляторы',        cats: ['Вентилятор'] }
 ];
+
+// ================= ДАШБОРД (только для логина admin) =================
+const DASH_MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+function dashMonthKey(date) {
+  const s = String(date || '').trim();
+  let m = s.match(/^(\d{4})-(\d{2})/);
+  if (m) return m[1] + '-' + m[2];
+  m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+  if (m) return m[3] + '-' + String(m[2]).padStart(2, '0');
+  return '';
+}
+function dashMonthLabel(key) {
+  const p = String(key).split('-');
+  const n = Number(p[1]) - 1;
+  return (DASH_MONTHS[n] || p[1]) + ' ' + p[0];
+}
+function dashClosedOrders() {
+  return archived.concat(orders.filter(o => o.status === 'Закрыт'));
+}
+function dashThermoValue(item) {
+  if (!item) return 0;
+  if (String(item.line || item.category || '') !== 'Термопаста') return 0;
+  const name = String(item.name || '').trim().toUpperCase();
+  if (!name || name === 'НЕ НУЖНО') return 0;
+  const thermoLine = CONFIG_LINES.find(l => l.thermo);
+  const fixed = thermoLine ? thermoLine.thermo : [];
+  const found = fixed.find(t => String(t[0]).toUpperCase() === name);
+  return Number(item.price) || (found ? found[1] : 0);
+}
+function dashOrderProfit(o) {
+  const blocks = normalizeConfigBlocks(o.config);
+  if (!blocks) return 0;
+  const active = blocks.filter(b => b.selected !== false);
+  const list = active.length ? active : blocks;
+  return list.reduce((sum, b) =>
+    sum + (b.items || []).reduce((s, it) => s + dashThermoValue(it), 0), 0);
+}
+function fillDashMonths(keep) {
+  const sel = document.getElementById('dashMonth');
+  const keys = {};
+  const d = new Date();
+  keys[d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')] = 1;
+  dashClosedOrders().forEach(o => { const k = dashMonthKey(o.date); if (k) keys[k] = 1; });
+  const list = Object.keys(keys).sort().reverse();
+  sel.innerHTML = list.map(k => '<option value="' + k + '">' + dashMonthLabel(k) + '</option>').join('');
+  sel.value = (keep && list.includes(keep)) ? keep : list[0];
+}
+function renderDashboard() {
+  if (!isAdmin()) return;
+  const sel = document.getElementById('dashMonth');
+  const prev = sel.value;
+  fillDashMonths(prev);
+  const key = sel.value;
+  const list = dashClosedOrders().filter(o => dashMonthKey(o.date) === key);
+  document.getElementById('dashOrders').textContent = list.length;
+  const profit = list.reduce((s, o) => s + dashOrderProfit(o), 0);
+  document.getElementById('dashProfit').textContent = profit.toLocaleString('ru-RU') + ' ₽';
+}
 
 // старый формат (плоский список позиций) → новый (блоки конфигураций)
 function normalizeConfigBlocks(cfg) {
@@ -1772,8 +1869,9 @@ function isAdmin() { return currentUserLabelStr === 'admin'; }
 function updateAdminUI() {
   const on = isAdmin();
   document.getElementById('tabStock').style.display = on ? '' : 'none';
+  document.getElementById('tabDashboard').style.display = on ? '' : 'none';
   if (!on) document.getElementById('stockActions').style.display = 'none';
-  if (!on && currentTab === 'stock') switchTab('orders');
+  if (!on && (currentTab === 'stock' || currentTab === 'dashboard')) switchTab('orders');
   else document.getElementById('btnAddStock').style.display =
     (on && currentTab === 'stock' && !stockArchiveView) ? 'inline-block' : 'none';
 }
