@@ -1,0 +1,42 @@
+name: Export CRM data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download data from Supabase
+        env:
+          SB_TOKEN: ${{ secrets.CRM_SUPABASE_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          base = 'https://ebpusmjozyyvdyhrwafk.supabase.co'
+          anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVicHVzbWpvenl5dmR5aHJ3YWZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ2NjYzNjIsImV4cCI6MjExMDI0MjM2Mn0.sr4-Fw_7heJtIcF5ahM1tEIONDaUyOTdvmwbTKLGalU'
+          token = os.environ['SB_TOKEN']
+          h = {'apikey': anon, 'Authorization': 'Bearer ' + token, 'Accept': 'application/json'}
+          out = {'exported_at': __import__('datetime').datetime.utcnow().isoformat() + 'Z'}
+          for table in ('orders', 'parts', 'settings'):
+              req = urllib.request.Request(base + '/rest/v1/' + table + '?select=*', headers=h)
+              rows = json.load(urllib.request.urlopen(req, timeout=180))
+              out[table] = rows
+              print(table, len(rows), flush=True)
+          with open('crm_export.json', 'w', encoding='utf-8') as f:
+              json.dump(out, f, ensure_ascii=False, indent=2)
+          PY
+
+      - name: Commit export
+        run: |
+          git config user.name "sirlondog"
+          git config user.email "sirlondog@users.noreply.github.com"
+          git checkout -B data-export
+          git add crm_export.json
+          git commit -m "CRM data export $(date -u +%Y-%m-%d)" || echo "no changes"
+          git push -f origin data-export
