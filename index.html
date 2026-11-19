@@ -363,6 +363,13 @@
     .container { padding: 14px 10px; }
     header { padding: 10px 12px; }
     .modal { padding: 20px 16px; }
+    /* поле дата не вылезает за экран: модалка на всю ширину, дата сжимается */
+    .modal { width: calc(100vw - 16px); max-width: calc(100vw - 16px); }
+    .modal input, .modal select, .modal textarea { min-width: 0; }
+    .modal input[type="date"] {
+      min-width: 0; width: 100%;
+      -webkit-appearance: none; appearance: none;
+    }
     /* строка вкладок переносится, кнопки не вылезают за экран */
     .tabs { flex-wrap: wrap; }
     .toolbar > div:last-child { flex-wrap: wrap; gap: 10px; }
