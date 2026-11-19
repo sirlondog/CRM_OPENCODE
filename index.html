@@ -382,7 +382,6 @@
     .toolbar > div:last-child { flex-wrap: wrap; gap: 10px; }
   }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -540,11 +539,29 @@
 
 <script>
 // ================= ХРАНЕНИЕ ДАННЫХ =================
-// Все данные хранятся в Supabase — облачной базе данных.
-// Заказы, детали и счётчик номеров видны с любого компьютера после входа.
-const SUPABASE_URL = 'https://ebpusmjozyyvdyhrwafk.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVicHVzbWpvenl5dmR5aHJ3YWZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ2NjYzNjIsImV4cCI6MjExMDI0MjM2Mn0.sr4-Fw_7heJtIcF5ahM1tEIONDaUyOTdvmwbTKLGalU';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Все данные лежат на вашем хостинге в MySQL. Страница разговаривает
+// с сервером через небольшой файл api.php.
+const API_URL = 'api.php';
+
+async function api(action, payload) {
+  const isPost = payload !== undefined;
+  let res;
+  try {
+    res = await fetch(API_URL + '?a=' + encodeURIComponent(action), {
+      method: isPost ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      headers: isPost ? { 'Content-Type': 'application/json' } : {},
+      body: isPost ? JSON.stringify(payload) : undefined
+    });
+  } catch (e) {
+    throw new Error('Не удалось связаться с сервером. Проверьте интернет и адрес сайта.');
+  }
+  let data;
+  try { data = await res.json(); }
+  catch (e) { throw new Error('Сервер вернул неверный ответ (код ' + res.status + ')'); }
+  if (!res.ok || data.error) throw new Error(data.error || 'Ошибка сервера ' + res.status);
+  return data;
+}
 
 let editingId = null; // id заказа в режиме редактирования
 
@@ -553,67 +570,13 @@ let archived = []; // архив
 let nextNum = 1;   // счётчик номеров заказов
 let parts = [];    // комплектующие (вкладка «Железо»)
 
-// старые localStorage-функции нужны только для разового переноса данных со старой версии
-function load(key, def) {
-  try { return JSON.parse(localStorage.getItem(key)) ?? def; }
-  catch { return def; }
-}
-
 async function loadAll() {
-  const [o, p, s] = await Promise.all([
-    sb.from('orders').select('*').order('id'),
-    sb.from('parts').select('*').order('id'),
-    sb.from('settings').select('*')
-  ]);
-  const oRows = o.data || [], pRows = p.data || [], sRows = s.data || [];
-  if (o.error || p.error || s.error) {
-    const e = (o.error || p.error || s.error);
-    alert('Ошибка загрузки данных: ' + e.message);
-  }
-  orders = oRows.filter(x => !x.archived);
-  archived = oRows.filter(x => x.archived);
-  parts = pRows;
-  const nn = sRows.find(x => x.key === 'nextnum');
-  nextNum = nn ? (Number(nn.value) || 1) : 1;
-}
-
-// Разовый перенос данных из localStorage старой версии в облако
-async function migrateLocalData() {
-  const oldOrders = load('crm_orders', []);
-  const oldArch = load('crm_archived', []);
-  const oldParts = load('crm_parts', []);
-  const oldNum = load('crm_nextnum', 1);
-  if (!oldOrders.length && !oldArch.length && !oldParts.length) {
-    ['crm_pass', 'crm_auth'].forEach(k => localStorage.removeItem(k));
-    return;
-  }
-  const ok = confirm(
-    'Найдены данные старой версии на этом компьютере:\n' +
-    '• заказов: ' + (oldOrders.length + oldArch.length) + '\n' +
-    '• деталей: ' + oldParts.length + '\n\n' +
-    'Перенести их в облачную базу? (Нажмите «Отмена», чтобы удалить их без переноса)'
-  );
-  if (ok) {
-    if (oldParts.length) {
-      const { error } = await sb.from('parts').upsert(oldParts.map(x => ({
-        id: x.id, category: x.category, name: x.name, price: x.price || 0, link: x.link || ''
-      })));
-      if (error) alert('Не удалось перенести детали: ' + error.message);
-    }
-    const allOld = oldOrders.map(x => ({ ...x, archived: false }))
-      .concat(oldArch.map(x => ({ ...x, archived: true })));
-    if (allOld.length) {
-      const { error } = await sb.from('orders').upsert(allOld.map(x => ({
-        id: x.id, number: x.number, date: x.date, name: x.name,
-        phone: x.phone || '', login: x.login || '', comment: x.comment || '',
-        config: x.config || [], status: x.status || 'Согласование', archived: x.archived
-      })));
-      if (error) alert('Не удалось перенести заказы: ' + error.message);
-    }
-    await sb.from('settings').upsert({ key: 'nextnum', value: Number(oldNum) || 1 });
-  }
-  ['crm_orders', 'crm_archived', 'crm_parts', 'crm_nextnum', 'crm_pass', 'crm_auth']
-    .forEach(k => localStorage.removeItem(k));
+  const d = await api('bootstrap');
+  const all = d.orders || [];
+  orders = all.filter(x => !x.archived);
+  archived = all.filter(x => x.archived);
+  parts = d.parts || [];
+  nextNum = Number((d.settings || {}).nextnum) || 1;
 }
 
 // ================= ВХОД =================
@@ -636,15 +599,15 @@ async function doLogin() {
     document.getElementById('loginError').textContent = 'Введите логин и пароль';
     return;
   }
-  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-  if (error) {
-    document.getElementById('loginError').textContent = 'Неверный логин или пароль';
-    return;
+  try {
+    await api('login', { login: email, password: pass });
+    await enterApp();
+  } catch (e) {
+    document.getElementById('loginError').textContent = e.message;
   }
-  await enterApp();
 }
 async function doLogout() {
-  await sb.auth.signOut();
+  try { await api('logout'); } catch (e) {}
   location.reload();
 }
 let currentUserLabelStr = '';
@@ -661,8 +624,8 @@ function userLabelFromSession(session) {
 
 async function refreshCurrentUserLabel() {
   try {
-    const { data } = await sb.auth.getSession();
-    currentUserLabelStr = userLabelFromSession(data && data.session);
+    const d = await api('me');
+    currentUserLabelStr = d.login || '';
   } catch (e) { currentUserLabelStr = currentUserLabelStr || ''; }
   return currentUserLabelStr;
 }
@@ -708,7 +671,6 @@ async function enterApp() {
   if (login) login.remove();
   document.getElementById('app').style.display = 'block';
   await refreshCurrentUserLabel();
-  await migrateLocalData();
   await loadAll();
   render();
 }
@@ -985,15 +947,14 @@ async function savePart() {
     price: parseFloat(document.getElementById('pPrice').value) || 0,
     link: document.getElementById('pLink').value.trim()
   };
-  if (partEditId) {
-    const { data, error } = await sb.from('parts').update(row).eq('id', partEditId).select().single();
-    if (error) { alert('Ошибка сохранения: ' + error.message); return; }
-    parts = parts.map(x => x.id === data.id ? data : x);
-  } else {
-    const { data, error } = await sb.from('parts').insert(row).select().single();
-    if (error) { alert('Ошибка сохранения: ' + error.message); return; }
-    parts.push(data);
-  }
+  try {
+    if (partEditId) row.id = partEditId;
+    const res = await api('part_save', row);
+    const saved = res.part;
+    parts = partEditId
+      ? parts.map(x => x.id === saved.id ? saved : x)
+      : parts.concat([saved]);
+  } catch (e) { alert('Ошибка сохранения: ' + e.message); return; }
   closePartModal();
   render();
 }
@@ -1002,8 +963,9 @@ async function deletePart(id) {
   const p = parts.find(x => x.id === id);
   if (!p) return;
   if (!confirm('Удалить деталь «' + p.name + '»?')) return;
-  const { error } = await sb.from('parts').delete().eq('id', id);
-  if (error) { alert('Ошибка удаления: ' + error.message); return; }
+  try {
+    await api('part_delete', { id: id });
+  } catch (e) { alert('Ошибка удаления: ' + e.message); return; }
   parts = parts.filter(x => x.id !== id);
   render();
 }
@@ -1363,8 +1325,9 @@ async function applyStatus(id, status) {
   if (!o) { closeStatusMenu(); return; }
 
   const toArchive = status === 'Закрыт';
-  const { error } = await sb.from('orders').update({ status: status, archived: toArchive }).eq('id', id);
-  if (error) { alert('Ошибка: ' + error.message); closeStatusMenu(); return; }
+  try {
+    await api('order_status', { id: id, status: status, archived: toArchive });
+  } catch (e) { alert('Ошибка: ' + e.message); closeStatusMenu(); return; }
 
   o.status = status;
   if (fromArchive) {
@@ -1482,39 +1445,13 @@ async function saveOrder() {
   };
   const closed = row.status === 'Закрыт';
 
-  // Пробуем сохранить всё; если в таблице orders ещё нет какой-то колонки
-  // (source, payment, ship, address...), убираем её из запроса и повторяем.
-  // Как только колонку добавят в Supabase — поля начнут сохраняться сами.
-  async function write(payload) {
-    if (editingId) {
-      return sb.from('orders').update({ ...payload, archived: closed }).eq('id', editingId).select().single();
-    }
-    return sb.from('orders').insert(payload).select().single();
-  }
-
   let saved;
-  let payload = { ...row };
-  let res = null;
-  for (let attempt = 0; attempt < 10; attempt++) {
-    res = await write(payload);
-    if (!res.error) break;
-    // ищем в сообщении об ошибке имя отсутствующей колонки
-    const msg = res.error.message || '';
-    const matches = msg.match(/'([a-zA-Z_][a-zA-Z0-9_]*)'/g) || [];
-    let removed = false;
-    for (const m of matches) {
-      const col = m.slice(1, -1);
-      if (payload.hasOwnProperty(col)) {
-        console.warn('Колонки нет в таблице orders: ' + col + ' — сохраняю без неё');
-        delete payload[col];
-        removed = true;
-        break;
-      }
-    }
-    if (!removed) break;
-  }
-  if (res.error) { alert('Ошибка сохранения: ' + res.error.message); return; }
-  saved = res.data;
+  try {
+    const payload = { ...row, archived: closed };
+    if (editingId) payload.id = editingId;
+    const res = await api('order_save', payload);
+    saved = res.order;
+  } catch (e) { alert('Ошибка сохранения: ' + e.message); return; }
 
   if (editingId) {
     orders = orders.filter(x => x.id !== saved.id);
@@ -1527,7 +1464,7 @@ async function saveOrder() {
   const usedNum = parseInt(saved.number, 10);
   if (!isNaN(usedNum) && usedNum >= nextNum) {
     nextNum = usedNum + 1;
-    sb.from('settings').upsert({ key: 'nextnum', value: nextNum }).then(() => {});
+    api('settings_set', { k: 'nextnum', v: nextNum }).catch(() => {});
   }
 
   originalOrderComment = commentFinal || '';
@@ -1546,8 +1483,10 @@ document.addEventListener('keydown', e => {
 // ================= АВТОВХОД =================
 // если пользователь уже входил (сессия сохранена) — открываем приложение сразу
 (async () => {
-  const { data } = await sb.auth.getSession();
-  if (data && data.session) await enterApp();
+  try {
+    await api('me');
+    await enterApp();
+  } catch (e) { /* не вошли — показываем окно входа */ }
 })();
 </script>
 

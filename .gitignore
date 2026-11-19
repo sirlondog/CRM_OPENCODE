@@ -1,1 +1,6 @@
 ﻿serve.ps1
+
+# Секреты и одноразовый установщик НЕ должны попадать в GitHub
+install.php
+db.php
+*.zip
