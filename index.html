@@ -275,6 +275,7 @@
   .badge.soglasovanie { background: rgba(244,167,44,.12); color: var(--amber); border-color: rgba(244,167,44,.28); }
   .badge.vrabote      { background: rgba(77,159,255,.12); color: var(--blue); border-color: rgba(77,159,255,.28); }
   .badge.zakryt       { background: rgba(62,207,142,.12); color: var(--green); border-color: rgba(62,207,142,.28); }
+  .badge.otkaz        { background: rgba(255,82,82,.12); color: var(--red); border-color: rgba(255,82,82,.28); }
 
   .actions { white-space: nowrap; }
   .actions select {
@@ -528,7 +529,7 @@
           <div class="dash-value" id="dashProfit">0 ₽</div>
         </div>
       </div>
-      <div class="dash-note">Прибыль = сумма выбранных термопаст MX в закрытых заказах за выбранный месяц.</div>
+      <div class="dash-note">Прибыль = сумма выбранных термопаст MX в закрытых заказах за выбранный месяц. Отказы не учитываются.</div>
     </div>
 
     <div class="card" id="mainCard">
@@ -631,6 +632,7 @@
   <button class="menu-item" data-status="Согласование">🟡 Согласование</button>
   <button class="menu-item" data-status="В работе">🔵 В работе</button>
   <button class="menu-item" data-status="Закрыт">🟢 Закрыт (в архив)</button>
+  <button class="menu-item" data-status="Отказ">🔴 Отказ (в архив)</button>
 </div>
 
 <!-- ============ МОДАЛКА ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ ============ -->
@@ -697,6 +699,7 @@
           <option value="Согласование">Согласование</option>
           <option value="В работе">В работе</option>
           <option value="Закрыт">Закрыт (в архив)</option>
+          <option value="Отказ">Отказ (в архив)</option>
         </select>
       </div>
     </div>
@@ -920,7 +923,7 @@ function switchTab(tab) {
 
 // ================= ОТРИСОВКА =================
 function statusBadge(status) {
-  const cls = { 'Согласование': 'soglasovanie', 'В работе': 'vrabote', 'Закрыт': 'zakryt' }[status] || '';
+  const cls = { 'Согласование': 'soglasovanie', 'В работе': 'vrabote', 'Закрыт': 'zakryt', 'Отказ': 'otkaz' }[status] || '';
   return '<span class="badge ' + cls + '">' + status + '</span>';
 }
 
@@ -960,7 +963,8 @@ function render() {
       ? 'Заказов в архиве: ' + archived.length
       : 'Активных заказов: ' + orders.length +
         ' | Согласование: ' + orders.filter(o => o.status === 'Согласование').length +
-        ' | В работе: ' + orders.filter(o => o.status === 'В работе').length;
+        ' | В работе: ' + orders.filter(o => o.status === 'В работе').length +
+        ' | Отказ: ' + orders.filter(o => o.status === 'Отказ').length;
 
   if (data.length === 0) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="5">' +
@@ -985,7 +989,7 @@ function render() {
 }
 
 function statusBadge(status, id) {
-  const cls = { 'Согласование': 'soglasovanie', 'В работе': 'vrabote', 'Закрыт': 'zakryt' }[status] || '';
+  const cls = { 'Согласование': 'soglasovanie', 'В работе': 'vrabote', 'Закрыт': 'zakryt', 'Отказ': 'otkaz' }[status] || '';
   return '<span class="badge ' + cls + '" title="Нажмите, чтобы сменить статус" onclick="openStatusMenu(event, ' + id + ')">' + status + '</span>';
 }
 
@@ -1249,7 +1253,7 @@ function dashMonthLabel(key) {
   return (DASH_MONTHS[n] || p[1]) + ' ' + p[0];
 }
 function dashClosedOrders() {
-  return archived.concat(orders.filter(o => o.status === 'Закрыт'));
+  return archived.concat(orders).filter(o => o.status === 'Закрыт');
 }
 function dashThermoValue(item) {
   if (!item) return 0;
@@ -1625,19 +1629,20 @@ async function applyStatus(id, status) {
   if (!o) { o = archived.find(x => x.id === id); fromArchive = true; }
   if (!o) { closeStatusMenu(); return; }
 
-  const toArchive = status === 'Закрыт';
+  // Закрыт и Отказ — завершённые статусы, оба уходят в архив
+  const toArchive = status === 'Закрыт' || status === 'Отказ';
   const { error } = await sb.from('orders').update({ status: status, archived: toArchive }).eq('id', id);
   if (error) { alert('Ошибка: ' + error.message); closeStatusMenu(); return; }
 
   o.status = status;
   if (fromArchive) {
-    // из архива: любой статус кроме «Закрыт» возвращает заказ в работу
+    // из архива: «Согласование» и «В работе» возвращают заказ в работу
     if (!toArchive) {
       archived = archived.filter(x => x.id !== id);
       orders.push(o);
     }
   } else if (toArchive) {
-    // закрытые автоматически уходят в архив
+    // закрытые и отказы автоматически уходят в архив
     orders = orders.filter(x => x.id !== id);
     archived.push(o);
   }
@@ -1757,7 +1762,7 @@ async function _saveOrder() {
     config: collectConfigBlocks(),
     status: document.getElementById('fStatus').value
   };
-  const closed = row.status === 'Закрыт';
+  const closed = row.status === 'Закрыт' || row.status === 'Отказ';
 
   // Пробуем сохранить всё; если в таблице orders ещё нет какой-то колонки
   // (source, payment, ship, address...), убираем её из запроса и повторяем.
