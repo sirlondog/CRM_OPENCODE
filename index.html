@@ -393,6 +393,11 @@
   .btn-stock-act:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
   .btn-stock-act.danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
   .btn-stock-act:disabled { opacity: .4; cursor: not-allowed; }
+  .stock-views { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+  .stock-view-btn { padding: 5px 12px; border: none; border-radius: 6px; background: transparent; color: var(--text-light); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .stock-view-btn.active { background: var(--green); color: var(--on-green); font-weight: 500; }
+  .stock-view-btn:not(.active):hover { background: var(--surface-2); color: var(--text); }
+  .stock-view-btn span { opacity: .8; }
   .stock-check { width: auto !important; margin: 0; accent-color: var(--green); }
   .stock-hint { color: var(--text-muted); font-size: 12px; margin-top: 4px; min-height: 15px; }
   .stock-more { margin-top: 8px; border: 1px solid var(--border-soft); border-radius: 8px; padding: 5px 10px; background: var(--bg); }
@@ -475,7 +480,12 @@
     </div>
 
     <div class="stock-actions" id="stockActions">
+      <div class="stock-views" id="stockViews">
+        <button class="stock-view-btn active" id="stockViewActive" onclick="switchStockView(false)">Склад <span id="stockCountActive">0</span></button>
+        <button class="stock-view-btn" id="stockViewArchive" onclick="switchStockView(true)">Архив <span id="stockCountArchive">0</span></button>
+      </div>
       <span class="stock-selected-count" id="stockSelectedCount">Выбрано: 0</span>
+      <button class="btn-stock-act" id="btnStockArchive" onclick="moveSelectedStock(!stockArchiveView)">В архив</button>
       <button class="btn-stock-act" id="btnStockDuplicate" onclick="duplicateSelectedStock()">Дублировать</button>
       <button class="btn-stock-act danger" id="btnStockDelete" onclick="deleteSelectedStock()">Удалить</button>
     </div>
@@ -849,10 +859,13 @@ function switchTab(tab) {
   document.getElementById('partSearch').style.display = isParts ? 'inline-block' : 'none';
   document.getElementById('btnAddOrder').style.display = (isParts || isStock) ? 'none' : 'inline-block';
   document.getElementById('btnAddPart').style.display = isParts ? 'inline-block' : 'none';
-  document.getElementById('btnAddStock').style.display = isStock ? 'inline-block' : 'none';
+  document.getElementById('btnAddStock').style.display =
+    (isStock && !stockArchiveView) ? 'inline-block' : 'none';
   document.getElementById('stockActions').style.display = isStock ? 'flex' : 'none';
+  document.getElementById('stockViewActive').classList.toggle('active', !stockArchiveView);
+  document.getElementById('stockViewArchive').classList.toggle('active', stockArchiveView);
   document.getElementById('stats').style.display = isStock ? 'none' : '';
-  if (!isStock) stockSelected.clear();
+  if (!isStock) { stockSelected.clear(); stockArchiveView = false; }
   render();
 }
 
@@ -1679,6 +1692,21 @@ let posSuggest = [];            // подсказки моделей из «Же
 let posActive = -1;             // активная подсказка при выборе стрелками
 let stockSelected = new Set();  // отмеченные галочками позиции склада
 let stockPendingId = null;      // id будущей записи — нужен для имён файлов
+let stockArchiveView = false;   // смотрим архив позиций вместо активного склада
+
+function visibleStockItems() {
+  return stock.filter(s => !!s.archived === stockArchiveView);
+}
+function switchStockView(archived) {
+  if (!isAdmin()) return;
+  stockArchiveView = !!archived;
+  stockSelected.clear();
+  document.getElementById('stockViewActive').classList.toggle('active', !stockArchiveView);
+  document.getElementById('stockViewArchive').classList.toggle('active', stockArchiveView);
+  document.getElementById('btnAddStock').style.display =
+    (currentTab === 'stock' && !stockArchiveView) ? 'inline-block' : 'none';
+  render();
+}
 
 function isAdmin() { return currentUserLabelStr === 'admin'; }
 
@@ -1688,7 +1716,7 @@ function updateAdminUI() {
   if (!on) document.getElementById('stockActions').style.display = 'none';
   if (!on && currentTab === 'stock') switchTab('orders');
   else document.getElementById('btnAddStock').style.display =
-    (on && currentTab === 'stock') ? 'inline-block' : 'none';
+    (on && currentTab === 'stock' && !stockArchiveView) ? 'inline-block' : 'none';
 }
 
 function todayStr() {
@@ -1724,7 +1752,10 @@ function orderById(id) {
 
 function renderStock() {
   if (!isAdmin()) { switchTab('orders'); return; }
-  stockSelected = new Set(Array.from(stockSelected).filter(id => stock.some(s => s.id === id)));
+  const list = visibleStockItems();
+  stockSelected = new Set(Array.from(stockSelected).filter(id => list.some(s => s.id === id)));
+  document.getElementById('stockCountActive').textContent = stock.filter(s => !s.archived).length;
+  document.getElementById('stockCountArchive').textContent = stock.filter(s => !!s.archived).length;
   document.getElementById('tableHead').innerHTML =
     '<tr><th style="width:34px"><input type="checkbox" class="stock-check" id="stockCheckAll" ' +
       'onchange="toggleAllStock(this.checked)" title="Выбрать все"></th>' +
@@ -1732,11 +1763,14 @@ function renderStock() {
     '<th>Поставщик</th><th>Связан с заказами</th><th>Гарантия</th><th>Чек</th><th></th></tr>';
   const tbody = document.getElementById('tableBody');
   updateStockActions();
-  if (!stock.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Склад пуст — нажмите «+ Добавить позицию»</td></tr>';
+  if (!list.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">' +
+      (stockArchiveView
+        ? 'Архив пуст. Отметьте позиции на складе и нажмите «В архив»'
+        : 'Склад пуст — нажмите «+ Добавить позицию»') + '</td></tr>';
     return;
   }
-  const sorted = stock.slice().sort((a, b) =>
+  const sorted = list.slice().sort((a, b) =>
     String(b.date || '').localeCompare(String(a.date || '')) || (b.id - a.id));
   tbody.innerHTML = sorted.map(s => {
     const rel = (s.related || []).map(id => orderById(id)).filter(Boolean);
@@ -1762,23 +1796,29 @@ function renderStock() {
       '</tr>';
   }).join('');
   const all = document.getElementById('stockCheckAll');
-  if (all) all.checked = stock.length > 0 && stock.every(s => stockSelected.has(s.id));
+  if (all) all.checked = list.length > 0 && list.every(s => stockSelected.has(s.id));
 }
 
 function updateStockActions() {
   const n = stockSelected.size;
   document.getElementById('stockSelectedCount').textContent = 'Выбрано: ' + n;
-  document.getElementById('btnStockDuplicate').disabled = n === 0;
+  const arch = document.getElementById('btnStockArchive');
+  arch.textContent = stockArchiveView ? 'Вернуть из архива' : 'В архив';
+  arch.disabled = n === 0;
+  const dup = document.getElementById('btnStockDuplicate');
+  dup.style.display = stockArchiveView ? 'none' : 'inline-block';
+  dup.disabled = n === 0;
   document.getElementById('btnStockDelete').disabled = n === 0;
 }
 function toggleStockCheck(id, on) {
   if (on) stockSelected.add(id); else stockSelected.delete(id);
+  const list = visibleStockItems();
   const all = document.getElementById('stockCheckAll');
-  if (all) all.checked = stock.length > 0 && stock.every(s => stockSelected.has(s.id));
+  if (all) all.checked = list.length > 0 && list.every(s => stockSelected.has(s.id));
   updateStockActions();
 }
 function toggleAllStock(on) {
-  if (on) stock.forEach(s => stockSelected.add(s.id));
+  if (on) visibleStockItems().forEach(s => stockSelected.add(s.id));
   else stockSelected.clear();
   document.querySelectorAll('#tableBody .stock-check').forEach(c => { c.checked = on; });
   updateStockActions();
@@ -1792,8 +1832,20 @@ function deleteSelectedStock() {
   stockSelected.clear();
   saveStockValue().then(() => render()).catch(e => alert('Ошибка: ' + e.message));
 }
-function duplicateSelectedStock() {
+function moveSelectedStock(toArchive) {
   if (!isAdmin()) return;
+  const ids = Array.from(stockSelected);
+  if (!ids.length) { alert('Отметьте позиции галочками'); return; }
+  const msg = toArchive
+    ? 'Перенести выбранных позиций в архив: ' + ids.length + '?'
+    : 'Вернуть выбранных позиций из архива на склад: ' + ids.length + '?';
+  if (!confirm(msg)) return;
+  stock = stock.map(x => ids.indexOf(x.id) >= 0 ? Object.assign({}, x, { archived: !!toArchive }) : x);
+  stockSelected.clear();
+  saveStockValue().then(() => render()).catch(e => alert('Ошибка: ' + e.message));
+}
+function duplicateSelectedStock() {
+  if (!isAdmin() || stockArchiveView) return;
   const ids = Array.from(stockSelected);
   if (!ids.length) { alert('Отметьте позицию галочкой'); return; }
   if (ids.length > 1) { alert('Дублировать можно только одну позицию за раз'); return; }
@@ -2082,7 +2134,10 @@ async function saveStockItem() {
     related: stockRelated.slice(),
     warranty: normalizeWarranty(document.getElementById('sWarranty').value.trim(), date),
     checkText: document.getElementById('sCheckText').value.trim(),
-    files: stockFiles.slice()
+    files: stockFiles.slice(),
+    archived: stockEditId
+      ? !!(stock.find(x => x.id === stockEditId) || {}).archived
+      : stockArchiveView
   };
   if (stockEditId) stock = stock.map(x => x.id === stockEditId ? item : x);
   else stock.push(item);
