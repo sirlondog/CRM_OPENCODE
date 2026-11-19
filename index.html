@@ -1678,6 +1678,7 @@ let stockFiles = [];            // файлы чека {name, mime, size, data}
 let posSuggest = [];            // подсказки моделей из «Железо»
 let posActive = -1;             // активная подсказка при выборе стрелками
 let stockSelected = new Set();  // отмеченные галочками позиции склада
+let stockPendingId = null;      // id будущей записи — нужен для имён файлов
 
 function isAdmin() { return currentUserLabelStr === 'admin'; }
 
@@ -1801,6 +1802,13 @@ function duplicateSelectedStock() {
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = Math.max(Date.now(), ...stock.map(x => Number(x.id) || 0)) + 1;
   if (copy.serial) copy.serial += ' (копия)';
+  // Файлы копии получают новый номер записи — имена не совпадут с оригиналом
+  if (copy.files) copy.files = copy.files.map(f => {
+    const n = String(f.name);
+    return Object.assign({}, f, {
+      name: n.replace(/^(\d{8})_\d+_(\d+_)/, '$1_' + copy.id + '_$2')
+    });
+  });
   stock.push(copy);
   stockSelected.clear();
   saveStockValue()
@@ -1928,6 +1936,7 @@ function applyWarranty() {
 async function openStockModal(id) {
   if (!isAdmin()) return;
   stockEditId = id || null;
+  stockPendingId = id || Date.now();
   const s = id ? stock.find(x => x.id === id) : null;
   document.querySelectorAll('[data-stock-more]').forEach(d => { d.open = false; });
   document.getElementById('stockModalTitle').textContent = s ? 'Редактировать позицию' : 'Новая позиция';
@@ -2000,7 +2009,9 @@ function renderStockFiles() {
   document.getElementById('sFiles').innerHTML = stockFiles.length
     ? stockFiles.map((f, i) =>
         '<div class="stock-file"><a href="data:' + esc(f.mime) + ';base64,' + f.data +
-        '" download="' + esc(f.name) + '">' + esc(f.name) + '</a>' +
+        '" download="' + esc(f.name) + '"' +
+        (f.origName ? ' title="Было: ' + esc(f.origName) + '"' : '') +
+        '>' + esc(f.name) + '</a>' +
         '<span class="stock-file-size">' + Math.round((f.size || 0) / 1024) + ' КБ</span>' +
         '<button type="button" title="Удалить файл" onclick="removeStockFile(' + i + ')">×</button></div>'
       ).join('')
@@ -2010,6 +2021,25 @@ function renderStockFiles() {
 function removeStockFile(i) {
   stockFiles.splice(i, 1);
   renderStockFiles();
+}
+
+// Имена файлов: ДАТА_НОМЕР_ЗАПИСИ_ПОРЯДОК_прежнее имя.
+// Так фото и чеки разных позиций никогда не совпадут.
+function stockFilePrefix() {
+  const d = document.getElementById('sDate').value;
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(d) ? d.replace(/-/g, '') : todayStr().replace(/-/g, '');
+  return day + '_' + (stockPendingId || stockEditId || Date.now());
+}
+function uniqueStockFileName(original) {
+  const prefix = stockFilePrefix();
+  const clean = String(original || 'file').trim().replace(/[\\/:*?"<>|]/g, '_') || 'file';
+  let n = 1;
+  const re = new RegExp('^' + prefix + '_(\\d+)_');
+  stockFiles.forEach(f => {
+    const m = String(f.name).match(re);
+    if (m) n = Math.max(n, Number(m[1]) + 1);
+  });
+  return prefix + '_' + String(n).padStart(2, '0') + '_' + clean;
 }
 
 async function addStockFiles(list) {
@@ -2025,7 +2055,8 @@ async function addStockFiles(list) {
       r.readAsDataURL(file);
     });
     stockFiles.push({
-      name: file.name,
+      name: uniqueStockFileName(file.name),
+      origName: file.name,
       mime: file.type || 'application/octet-stream',
       size: file.size,
       data: data
@@ -2040,7 +2071,7 @@ async function saveStockItem() {
   const date = dateManual ? document.getElementById('sDate').value : todayStr();
   if (!date) { alert('Укажите дату'); return; }
   const item = {
-    id: stockEditId || Date.now(),
+    id: stockEditId || stockPendingId || Date.now(),
     date: date,
     dateManual: dateManual,
     position: document.getElementById('sPositionId').value ||
