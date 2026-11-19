@@ -1705,6 +1705,7 @@ let posActive = -1;             // активная подсказка при в
 let stockSelected = new Set();  // отмеченные галочками позиции склада
 let stockPendingId = null;      // id будущей записи — нужен для имён файлов
 let stockArchiveView = false;   // смотрим архив позиций вместо активного склада
+let stockFocusTimer = null;     // отложенный фокус поля «Позиция» для новой записи
 
 function visibleStockItems() {
   return stock.filter(s => !!s.archived === stockArchiveView);
@@ -1951,7 +1952,14 @@ function duplicateSelectedStock() {
   if (!src) return;
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = Math.max(Date.now(), ...stock.map(x => Number(x.id) || 0)) + 1;
-  if (copy.serial) copy.serial += ' (копия)';
+  if (copy.serial) {
+    copy.serial += ' (копия)';
+    let n = 2;
+    while (findSerialDuplicate(copy.serial, copy.id)) {
+      copy.serial = src.serial + ' (копия ' + n + ')';
+      n++;
+    }
+  }
   // Файлы копии получают новый номер записи — имена не совпадут с оригиналом
   if (copy.files) copy.files = copy.files.map(f => {
     const n = String(f.name);
@@ -2115,7 +2123,8 @@ async function openStockModal(id) {
   renderStockFiles();
   previewWarranty();
   document.getElementById('stockOverlay').classList.add('open');
-  if (!s) setTimeout(() => {
+  clearTimeout(stockFocusTimer);
+  if (!s) stockFocusTimer = setTimeout(() => {
     document.getElementById('sPosition').focus();
     renderPositionSuggest();
   }, 60);
@@ -2215,18 +2224,40 @@ async function addStockFiles(list) {
   renderStockFiles();
 }
 
+// Серийный номер уникален для всех позиций — и на складе, и в архиве.
+// Пробелы и регистр не важны: S 123 и s123 считаются одним номером.
+function serialKey(v) {
+  return String(v || '').trim().replace(/\s+/g, '').toUpperCase();
+}
+function findSerialDuplicate(serial, editId) {
+  const key = serialKey(serial);
+  if (!key) return null;
+  return stock.find(s => s.id !== editId && serialKey(s.serial) === key) || null;
+}
+
 async function saveStockItem() {
   if (!isAdmin()) return;
   const dateManual = document.getElementById('sDateManual').checked;
   const date = dateManual ? document.getElementById('sDate').value : todayStr();
   if (!date) { alert('Укажите дату'); return; }
+  const serial = document.getElementById('sSerial').value.trim();
+  const dup = findSerialDuplicate(serial, stockEditId);
+  if (dup) {
+    alert('Такой серийный номер уже есть ' + (dup.archived ? 'в архиве' : 'на складе') +
+      ': ' + fmtDate(dup.date) + ', ' + partName(dup.position) +
+      '.\nВведите другой номер или отредактируйте ту позицию.');
+    clearTimeout(stockFocusTimer);
+    const inp = document.getElementById('sSerial');
+    inp.focus(); inp.select();
+    return;
+  }
   const item = {
     id: stockEditId || stockPendingId || Date.now(),
     date: date,
     dateManual: dateManual,
     position: document.getElementById('sPositionId').value ||
               document.getElementById('sPosition').value.trim(),
-    serial: document.getElementById('sSerial').value.trim(),
+    serial: serial,
     cost: document.getElementById('sCost').value.trim(),
     supplier: document.getElementById('sSupplier').value.trim(),
     related: stockRelated.slice(),
