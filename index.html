@@ -132,6 +132,10 @@
     font-family: inherit; transition: background .15s;
   }
   .btn-add:hover { background: var(--green-hover); }
+  /* компактная зелёная кнопка «+» для добавления заказа/детали (текст только в подсказке) */
+  .btn-part-full { display: none; }
+  .btn-part-plus { display: inline; font-size: 16px; line-height: 1; }
+  #btnAddOrder, #btnAddPart { padding: 7px 13px; }
   .stats { font-size: 12px; color: var(--text-muted); font-family: var(--mono); }
 
   .filter-select {
@@ -362,10 +366,6 @@
     /* строка вкладок переносится, кнопки не вылезают за экран */
     .tabs { flex-wrap: wrap; }
     .toolbar > div:last-child { flex-wrap: wrap; gap: 10px; }
-    /* «Добавить деталь» на мобильном — компактная зелёная кнопка «+» */
-    .btn-part-full { display: none; }
-    .btn-part-plus { display: inline; font-size: 16px; line-height: 1; }
-    #btnAddPart { padding: 6px 12px; }
   }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -411,7 +411,7 @@
                list="partsDatalist" autocomplete="off" oninput="render()" style="display:none">
         <datalist id="partsDatalist"></datalist>
         <select class="filter-select" id="partFilter" onchange="render()"></select>
-        <button class="btn-add" id="btnAddOrder" onclick="openAddModal()">+ Добавить заказ</button>
+        <button class="btn-add" id="btnAddOrder" title="Добавить заказ" onclick="openAddModal()"><span class="btn-part-full">+ Добавить заказ</span><span class="btn-part-plus">+</span></button>
       </div>
     </div>
 
