@@ -418,7 +418,7 @@
       <option value="Закрыт">Закрыт (в архив)</option>
     </select>
     <div class="modal-buttons">
-      <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+      <button class="btn-cancel" onclick="closeModal()">Закрыть</button>
       <button class="btn-save" onclick="saveOrder()">Сохранить</button>
     </div>
   </div>
@@ -1165,12 +1165,11 @@ async function saveOrder() {
   if (currentTab !== 'orders') switchTab('orders'); else render();
 }
 
-// закрытие модалки по клику на фон и по Escape
-document.getElementById('modalOverlay').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closeModal();
-});
+// Окно заказа закрывается ТОЛЬКО кнопкой «Закрыть» внизу окна —
+// клик мимо окна и Escape не закрывают его, чтобы случайно не потерять введённые данные.
+// (клик по фону игнорируется, обработчик не ставим)
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeStatusMenu(); closeModal(); closePartModal(); }
+  if (e.key === 'Escape') { closeStatusMenu(); closePartModal(); }
 });
 
 // ================= АВТОВХОД =================
