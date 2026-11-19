@@ -362,6 +362,10 @@
     /* строка вкладок переносится, кнопки не вылезают за экран */
     .tabs { flex-wrap: wrap; }
     .toolbar > div:last-child { flex-wrap: wrap; gap: 10px; }
+    /* «Добавить деталь» на мобильном — компактная зелёная кнопка «+» */
+    .btn-part-full { display: none; }
+    .btn-part-plus { display: inline; font-size: 16px; line-height: 1; }
+    #btnAddPart { padding: 6px 12px; }
   }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -399,7 +403,7 @@
         <button class="tab-btn active" id="tabOrders" onclick="switchTab('orders')">Заказы</button>
         <button class="tab-btn" id="tabArchive" onclick="switchTab('archive')">Архив</button>
         <button class="tab-btn" id="tabParts" onclick="switchTab('parts')">Железо</button>
-        <button class="btn-add" id="btnAddPart" style="display:none" onclick="openPartModal()">+ Добавить деталь</button>
+        <button class="btn-add" id="btnAddPart" style="display:none" onclick="openPartModal()"><span class="btn-part-full">+ Добавить деталь</span><span class="btn-part-plus">+</span></button>
       </div>
       <div style="display:flex; align-items:center; gap:16px;">
         <span class="stats" id="stats"></span>
