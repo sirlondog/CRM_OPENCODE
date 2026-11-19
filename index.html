@@ -398,6 +398,7 @@
   .stock-view-btn.active { background: var(--green); color: var(--on-green); font-weight: 500; }
   .stock-view-btn:not(.active):hover { background: var(--surface-2); color: var(--text); }
   .stock-view-btn span { opacity: .8; }
+  .stock-search-input { display: block; width: 260px; }
   .stock-check { width: auto !important; margin: 0; accent-color: var(--green); }
   .stock-hint { color: var(--text-muted); font-size: 12px; margin-top: 4px; min-height: 15px; }
   .stock-more { margin-top: 8px; border: 1px solid var(--border-soft); border-radius: 8px; padding: 5px 10px; background: var(--bg); }
@@ -483,6 +484,13 @@
       <div class="stock-views" id="stockViews">
         <button class="stock-view-btn active" id="stockViewActive" onclick="switchStockView(false)">Склад <span id="stockCountActive">0</span></button>
         <button class="stock-view-btn" id="stockViewArchive" onclick="switchStockView(true)">Архив <span id="stockCountArchive">0</span></button>
+      </div>
+      <div class="stock-suggest-wrap" id="stockSearchWrap">
+        <input type="search" id="stockSearch" class="filter-input stock-search-input"
+               placeholder="Поиск по складу и архиву" autocomplete="off"
+               oninput="onStockSearch()" onfocus="onStockSearch()"
+               onblur="hideStockSearchSuggest(150)" onkeydown="stockSearchKey(event)">
+        <div class="stock-suggest" id="stockSearchSuggest"></div>
       </div>
       <span class="stock-selected-count" id="stockSelectedCount">Выбрано: 0</span>
       <button class="btn-stock-act" id="btnStockArchive" onclick="moveSelectedStock(!stockArchiveView)">В архив</button>
@@ -865,7 +873,11 @@ function switchTab(tab) {
   document.getElementById('stockViewActive').classList.toggle('active', !stockArchiveView);
   document.getElementById('stockViewArchive').classList.toggle('active', stockArchiveView);
   document.getElementById('stats').style.display = isStock ? 'none' : '';
-  if (!isStock) { stockSelected.clear(); stockArchiveView = false; }
+  if (!isStock) {
+    stockSelected.clear(); stockArchiveView = false;
+    document.getElementById('stockSearch').value = '';
+    hideStockSearchSuggest();
+  }
   render();
 }
 
@@ -1750,9 +1762,94 @@ function orderById(id) {
   return orders.find(x => x.id === id) || archived.find(x => x.id === id);
 }
 
+// ---- Поиск по складу: ищет во всех полях, включая архив ----
+let stockSearchRowsList = [];
+let stockSearchActive = -1;
+function stockSearchText(s) {
+  const p = parts.find(x => String(x.id) === String(s.position));
+  const rel = (s.related || []).map(id => orderById(id)).filter(Boolean)
+    .map(o => '№' + o.number + ' ' + (o.name || '') + ' ' + (o.login || ''));
+  const files = (s.files || []).map(f => String(f.name || '') + ' ' + String(f.origName || ''));
+  return [
+    fmtDate(s.date), partName(s.position), s.position, p && p.category,
+    s.serial, s.cost, s.supplier, s.warranty, s.checkText,
+    rel.join(' '), files.join(' '), s.id, s.archived ? 'архив' : 'склад'
+  ].filter(v => v !== null && v !== undefined).join(' ').toLowerCase();
+}
+function stockSearchRows(q) {
+  if (!q) return [];
+  return stock.filter(s => stockSearchText(s).indexOf(q) >= 0)
+    .slice().sort((a, b) =>
+      String(b.date || '').localeCompare(String(a.date || '')) || (b.id - a.id))
+    .slice(0, 12);
+}
+function stockRowLabel(s) {
+  return fmtDate(s.date) + ' · ' + partName(s.position) +
+    (s.serial ? ' · ' + s.serial : '') +
+    (s.supplier ? ' · ' + s.supplier : '') +
+    (s.archived ? ' · АРХИВ' : '');
+}
+function renderStockSearchSuggest() {
+  const box = document.getElementById('stockSearchSuggest');
+  const raw = (document.getElementById('stockSearch').value || '').trim();
+  const q = raw.toLowerCase();
+  if (!q) { box.innerHTML = ''; box.classList.remove('open'); return; }
+  stockSearchRowsList = stockSearchRows(q);
+  stockSearchActive = -1;
+  box.innerHTML = stockSearchRowsList.length
+    ? stockSearchRowsList.map((s, i) =>
+        '<div class="stock-suggest-item" onmousedown="chooseStockSearch(' + i + ')">' +
+        positionHighlight(stockRowLabel(s), raw) + '</div>').join('')
+    : '<div class="stock-suggest-empty">Ничего не найдено ни на складе, ни в архиве</div>';
+  box.classList.add('open');
+}
+function hideStockSearchSuggest(delay) {
+  const box = document.getElementById('stockSearchSuggest');
+  if (delay) setTimeout(() => box.classList.remove('open'), delay);
+  else box.classList.remove('open');
+}
+function onStockSearch() {
+  renderStock();
+  renderStockSearchSuggest();
+}
+function chooseStockSearch(i) {
+  const s = stockSearchRowsList[i];
+  if (!s) return;
+  document.getElementById('stockSearch').value = '';
+  hideStockSearchSuggest();
+  if (currentTab !== 'stock') switchTab('stock');
+  if (!!s.archived !== stockArchiveView) switchStockView(!!s.archived);
+  render();
+  openStockModal(s.id);
+}
+function stockSearchKey(e) {
+  const box = document.getElementById('stockSearchSuggest');
+  if (e.key === 'Escape') { hideStockSearchSuggest(); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!box.classList.contains('open')) renderStockSearchSuggest();
+    if (!stockSearchRowsList.length) return;
+    stockSearchActive = e.key === 'ArrowDown'
+      ? (stockSearchActive + 1) % stockSearchRowsList.length
+      : (stockSearchActive <= 0 ? stockSearchRowsList.length - 1 : stockSearchActive - 1);
+    box.querySelectorAll('.stock-suggest-item').forEach((el, i) =>
+      el.classList.toggle('active', i === stockSearchActive));
+    return;
+  }
+  if (e.key === 'Enter' && stockSearchActive >= 0) {
+    e.preventDefault();
+    chooseStockSearch(stockSearchActive);
+  }
+}
+document.addEventListener('click', e => {
+  if (!document.getElementById('stockSearchWrap').contains(e.target)) hideStockSearchSuggest();
+});
+
 function renderStock() {
   if (!isAdmin()) { switchTab('orders'); return; }
-  const list = visibleStockItems();
+  const rawQ = (document.getElementById('stockSearch').value || '').trim();
+  const q = rawQ.toLowerCase();
+  const list = visibleStockItems().filter(s => !q || stockSearchText(s).indexOf(q) >= 0);
   stockSelected = new Set(Array.from(stockSelected).filter(id => list.some(s => s.id === id)));
   document.getElementById('stockCountActive').textContent = stock.filter(s => !s.archived).length;
   document.getElementById('stockCountArchive').textContent = stock.filter(s => !!s.archived).length;
@@ -1765,9 +1862,10 @@ function renderStock() {
   updateStockActions();
   if (!list.length) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="10">' +
-      (stockArchiveView
-        ? 'Архив пуст. Отметьте позиции на складе и нажмите «В архив»'
-        : 'Склад пуст — нажмите «+ Добавить позицию»') + '</td></tr>';
+      (q ? 'Ничего не найдено по запросу «' + esc(rawQ) + '» — ни на складе, ни в архиве'
+         : stockArchiveView
+           ? 'Архив пуст. Отметьте позиции на складе и нажмите «В архив»'
+           : 'Склад пуст — нажмите «+ Добавить позицию»') + '</td></tr>';
     return;
   }
   const sorted = list.slice().sort((a, b) =>
