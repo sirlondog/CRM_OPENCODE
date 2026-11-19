@@ -224,7 +224,8 @@
   /* ===== ТАБЛИЦА ===== */
   .card {
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; overflow: hidden;
+    border-radius: 12px; overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
     box-shadow: 0 8px 30px rgba(0,0,0,.35);
   }
   table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
@@ -345,6 +346,20 @@
   .btn-save:hover { background: var(--green-hover); }
   .btn-cancel { background: var(--surface-2); color: var(--text-light); border: 1px solid var(--border) !important; }
   .btn-cancel:hover { background: var(--surface-3); color: var(--text); }
+
+  /* ===== МОБИЛЬНАЯ ВЕРСИЯ ===== */
+  @media (max-width: 640px) {
+    /* статистику (активных, согласование, в работе) не показываем */
+    .stats { display: none; }
+    /* компактная кнопка «Добавить заказ» */
+    .btn-add { padding: 6px 12px; font-size: 12px; border-radius: 7px; }
+    /* таблица прокручивается пальцем вправо */
+    .card { overflow-x: auto; }
+    .card table { min-width: 760px; }
+    .container { padding: 14px 10px; }
+    header { padding: 10px 12px; }
+    .modal { padding: 20px 16px; }
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -635,8 +650,8 @@ function statusBadge(status) {
 }
 
 const ORDERS_HEAD = '<tr>' +
-  '<th>№ заказа</th><th>Заказчик</th><th>Стоимость</th>' +
-  '<th>Комментарий</th><th>Статус</th></tr>';
+  '<th>№ заказа</th><th>Статус</th><th>Заказчик</th><th>Стоимость</th>' +
+  '<th>Комментарий</th></tr>';
 
 // стоимость на главной = сумма ВСЕХ отмеченных конфигураций (галочки в карточке);
 // если отмечено несколько — складываются (например, заказ на 2 компьютера)
@@ -682,12 +697,12 @@ function render() {
       '<td><div class="num-wrap"><a class="order-num" title="Открыть карточку заказа" onclick="openOrderCard(' + o.id + ')">' + esc(o.number) + '</a>' +
         '<button class="btn-copy" title="Скопировать заказ текстом (для мессенджера)" onclick="copyOrder(' + o.id + ', this)">💾</button></div>' +
         '<div class="order-date">' + esc(fmtDate(o.date)) + '</div></td>' +
+      '<td>' + statusBadge(o.status, o.id) + '</td>' +
       '<td><div class="cust-name">' + esc(o.name) + '</div>' +
         '<div class="cust-phone">' + esc(o.phone) + '</div>' +
         (o.login ? '<div class="cust-login">@' + esc(o.login) + '</div>' : '') + '</td>' +
       '<td class="order-cost">' + (total > 0 ? fmtMoney(total) : '—') + '</td>' +
       '<td class="comment-cell" title="' + esc(o.comment) + '">' + esc(o.comment) + '</td>' +
-      '<td>' + statusBadge(o.status, o.id) + '</td>' +
     '</tr>';
   }).join('');
 }
