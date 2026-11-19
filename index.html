@@ -527,6 +527,9 @@
     <label for="sCost">Стоимость</label>
     <input id="sCost" type="text" autocomplete="off" placeholder="Например: 45 000 ₽">
 
+    <label for="sSupplier">Поставщик</label>
+    <input id="sSupplier" type="text" autocomplete="off" placeholder="Например: ООО «ТехноСнаб»">
+
     <label for="sOrderSearch">Связан с заказами</label>
     <input id="sOrderSearch" type="search" autocomplete="off" placeholder="Поиск по номеру, имени или логину" oninput="renderStockRel()">
     <div class="stock-rel-list" id="sOrderResults"></div>
@@ -1707,11 +1710,11 @@ function renderStock() {
     '<tr><th style="width:34px"><input type="checkbox" class="stock-check" id="stockCheckAll" ' +
       'onchange="toggleAllStock(this.checked)" title="Выбрать все"></th>' +
     '<th>Дата</th><th>Позиция</th><th>Серийный номер</th><th>Стоимость</th>' +
-    '<th>Связан с заказами</th><th>Гарантия</th><th>Чек</th><th></th></tr>';
+    '<th>Поставщик</th><th>Связан с заказами</th><th>Гарантия</th><th>Чек</th><th></th></tr>';
   const tbody = document.getElementById('tableBody');
   updateStockActions();
   if (!stock.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Склад пуст — нажмите «+ Добавить позицию»</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Склад пуст — нажмите «+ Добавить позицию»</td></tr>';
     return;
   }
   const sorted = stock.slice().sort((a, b) =>
@@ -1732,6 +1735,7 @@ function renderStock() {
       '<td>' + esc(partName(s.position)) + '</td>' +
       '<td>' + esc(s.serial || '—') + '</td>' +
       '<td>' + esc(s.cost || '—') + '</td>' +
+      '<td>' + esc(s.supplier || '—') + '</td>' +
       '<td>' + relHtml + '</td>' +
       '<td>' + esc(s.warranty || '—') + '</td>' +
       '<td>' + (checkHtml || '—') + '</td>' +
@@ -1921,6 +1925,7 @@ async function openStockModal(id) {
 
   document.getElementById('sSerial').value = s ? (s.serial || '') : '';
   document.getElementById('sCost').value = s ? (s.cost || '') : '';
+  document.getElementById('sSupplier').value = s ? (s.supplier || '') : '';
   document.getElementById('sWarranty').value = s ? (s.warranty || '') : '';
   document.getElementById('sCheckText').value = s ? (s.checkText || '') : '';
 
@@ -2023,6 +2028,7 @@ async function saveStockItem() {
               document.getElementById('sPosition').value.trim(),
     serial: document.getElementById('sSerial').value.trim(),
     cost: document.getElementById('sCost').value.trim(),
+    supplier: document.getElementById('sSupplier').value.trim(),
     related: stockRelated.slice(),
     warranty: normalizeWarranty(document.getElementById('sWarranty').value.trim(), date),
     checkText: document.getElementById('sCheckText').value.trim(),
