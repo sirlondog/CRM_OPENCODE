@@ -1,0 +1,48 @@
+name: Обновление CRM на reg.ru
+
+# Срабатывает при каждом Push в ветку regru и вручную (кнопка Run workflow).
+# Файлы db.php и install.php НЕ загружаются — они лежат на сервере отдельно.
+
+on:
+  push:
+    branches: [regru]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      READY: ${{ secrets.FTP_SERVER != '' && secrets.FTP_USERNAME != '' && secrets.FTP_PASSWORD != '' }}
+
+    steps:
+      - name: Берём код из ветки regru
+        uses: actions/checkout@v4
+        with:
+          ref: regru
+
+      - name: Проверка настроек FTP
+        if: env.READY != 'true'
+        run: echo "FTP ещё не настроен — пропускаем загрузку. См. DEPLOY_README.md"
+
+      - name: Загружаем файлы на хостинг
+        if: env.READY == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT || '21' }}
+          protocol: ftp
+          local-dir: ./
+          server-dir: ${{ secrets.FTP_SERVER_DIR || '/' }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .github/**
+            .gitignore
+            DEPLOY_README.md
+            README_REGRU.txt
+            db.php
+            **/db.php
+            install.php
+            **/install.php
