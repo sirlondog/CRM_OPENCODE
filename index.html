@@ -289,7 +289,7 @@
     outline: none; border-color: var(--green);
     box-shadow: 0 0 0 3px rgba(62,207,142,.12);
   }
-  .modal textarea { resize: vertical; min-height: 70px; }
+  .modal textarea { resize: vertical; min-height: 140px; }
   .modal .row2 { display: flex; gap: 12px; }
   .modal .row2 > div { flex: 1; }
   .modal-buttons { display: flex; gap: 10px; margin-top: 22px; }
@@ -399,8 +399,6 @@
     <input id="fPhone" type="tel" name="customerPhone" autocomplete="tel" placeholder="+7 (___) ___-__-__">
     <label for="fLogin">Логин</label>
     <input id="fLogin" type="text" name="customerLogin" autocomplete="off" placeholder="логин заказчика">
-    <label for="fSource">Источник</label>
-    <input id="fSource" type="text" name="orderSource" autocomplete="off" placeholder="откуда пришёл клиент: Авито, ВК, знакомые...">
     <label>Конфигурация</label>
     <table class="config-table">
       <thead>
@@ -411,6 +409,8 @@
     <div class="config-sum" id="configSum"></div>
     <label for="fComment">Комментарий</label>
     <textarea id="fComment" name="comment" autocomplete="off" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
+    <label for="fSource">Источник</label>
+    <input id="fSource" type="text" name="orderSource" autocomplete="off" placeholder="откуда пришёл клиент: Авито, ВК, знакомые...">
     <label for="fStatus">Статус заказа</label>
     <select id="fStatus">
       <option value="Согласование">Согласование</option>
