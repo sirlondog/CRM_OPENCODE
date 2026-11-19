@@ -3,6 +3,17 @@
 // CRM-STARCOMP — передаточник между страницей и базой MySQL.
 // Все запросы идут сюда из index.html.
 // ============================================================
+// Куки только по HTTPS (на локальном http-тесте HTTPS не требуется),
+// недоступны для JavaScript и не отправляются с чужих сайтов.
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path'     => '/',
+    'secure'   => $isHttps,
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
 session_name('starcomp_crm');
 session_start();
 require __DIR__ . '/db.php';
@@ -81,6 +92,18 @@ switch ($action) {
         $login = trim(strval0($in['login'] ?? ''));
         $pass  = strval0($in['password'] ?? '');
         if ($login === '' || $pass === '') fail('Введите логин и пароль');
+
+        // Защита от подбора пароля: 5 неудачных попыток с одного адреса
+        // за 15 минут → временная блокировка.
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $pdo->exec("DELETE FROM login_attempts WHERE last_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
+        $sa = $pdo->prepare('SELECT tries FROM login_attempts WHERE ip = ?');
+        $sa->execute([$ip]);
+        $tries = (int)$sa->fetchColumn();
+        if ($tries >= 5) {
+            fail('Слишком много неудачных попыток. Подождите 15 минут.', 429);
+        }
+
         $aliases = ['igor' => 'igor@star-comp.ru', 'admin' => 'admin@star-comp.ru'];
         $key = strtolower($login);
         $email = $aliases[$key] ?? $login;
@@ -88,8 +111,13 @@ switch ($action) {
         $st->execute([$email, $login]);
         $u = $st->fetch();
         if (!$u || !password_verify($pass, $u['password_hash'])) {
+            $sb = $pdo->prepare('INSERT INTO login_attempts (ip, tries, last_at) VALUES (?, 1, NOW())
+                                 ON DUPLICATE KEY UPDATE tries = tries + 1, last_at = NOW()');
+            $sb->execute([$ip]);
             fail('Неверный логин или пароль', 401);
         }
+        $sd = $pdo->prepare('DELETE FROM login_attempts WHERE ip = ?');
+        $sd->execute([$ip]);
         session_regenerate_id(true);
         $_SESSION['user'] = $u['login'];
         $_SESSION['uid']  = (int)$u['id'];
