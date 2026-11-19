@@ -180,6 +180,38 @@
   }
   .config-profit { color: var(--green); }
 
+  /* ===== НЕСКОЛЬКО КОНФИГУРАЦИЙ В ЗАКАЗЕ ===== */
+  .config-block {
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 12px 10px; margin-top: 8px;
+  }
+  .config-block-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .config-block-title {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 600; font-size: 13px; color: var(--text);
+    cursor: pointer; user-select: none;
+  }
+  .config-block-title input[type="checkbox"] {
+    width: auto !important; margin: 0; accent-color: var(--green); cursor: pointer;
+  }
+  .config-block-title:hover { color: var(--green); }
+  .config-block-tools { display: flex; gap: 4px; }
+  .config-collapse, .config-block-del {
+    background: none; border: none; cursor: pointer; font-family: inherit;
+    color: var(--text-muted); font-size: 12px; padding: 2px 6px; border-radius: 6px;
+    transition: .15s;
+  }
+  .config-collapse:hover { color: var(--text); background: var(--surface-3); }
+  .config-block-del:hover { color: var(--red); background: rgba(229,72,77,.12); }
+  .config-block.collapsed .config-block-body { display: none; }
+  .config-block .config-table { margin-top: 2px; }
+  .btn-config-add {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; font-size: 13px; color: var(--text-light);
+    font-family: inherit; margin-top: 10px; transition: .15s;
+  }
+  .btn-config-add:hover { background: var(--surface-3); color: var(--text); }
+
   /* ===== КНОПКА КОПИРОВАНИЯ ЗАКАЗА ===== */
   .num-wrap { display: flex; align-items: center; gap: 6px; }
   .btn-copy {
@@ -416,14 +448,9 @@
     <input id="fPhone" type="tel" name="customerPhone" autocomplete="tel" placeholder="+7 (___) ___-__-__">
     <label for="fLogin">Логин</label>
     <input id="fLogin" type="text" name="customerLogin" autocomplete="off" placeholder="логин заказчика">
-    <label>Конфигурация</label>
-    <table class="config-table">
-      <thead>
-        <tr><th>Категория</th><th>Деталь</th><th>Стоимость, ₽</th></tr>
-      </thead>
-      <tbody id="configTableBody"></tbody>
-    </table>
-    <div class="config-sum" id="configSum"></div>
+    <label>Конфигурации</label>
+    <div id="configBlocks"></div>
+    <button type="button" class="btn-config-add" onclick="addConfigBlock()">+ Добавить ещё конфигурацию</button>
     <label for="fComment">Комментарий</label>
     <textarea id="fComment" name="comment" autocomplete="off" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
     <label for="fSource">Источник</label>
@@ -601,9 +628,13 @@ const ORDERS_HEAD = '<tr>' +
   '<th>№ заказа</th><th>Заказчик</th><th>Стоимость</th>' +
   '<th>Комментарий</th><th>Статус</th></tr>';
 
-// сумма конфигурации заказа = сумма стоимостей всех позиций (× количество)
+// стоимость на главной = сумма ВЫБРАННОЙ конфигурации (галочка в карточке)
 function configTotal(o) {
-  return (o.config || []).reduce((s, c) => s + (c.price || 0) * (c.qty || 1), 0);
+  const blocks = normalizeConfigBlocks(o.config);
+  if (!blocks) return 0;
+  const sel = blocks.find(b => b.selected);
+  if (!sel) return 0;
+  return itemsTotal(sel.items);
 }
 
 function render() {
@@ -658,7 +689,10 @@ function copyOrder(id, btn) {
   if (o.phone) lines.push('Телефон: ' + o.phone);
   if (o.login) lines.push('Логин: ' + o.login);
 
-  const cfg = (o.config || []).filter(c => !c.skipped && c.name !== 'Не нужно');
+  const blocks = normalizeConfigBlocks(o.config);
+  const cfg = blocks
+    ? (((blocks.find(b => b.selected) || blocks[0]).items) || []).filter(c => !c.skipped && c.name !== 'Не нужно')
+    : [];
   if (cfg.length) {
     lines.push('');
     lines.push('Конфигурация:');
@@ -873,10 +907,21 @@ const CONFIG_LINES = [
   { label: 'Вентиляторы',        cats: ['Вентилятор'] }
 ];
 
-function buildConfigTable(savedList) {
+// старый формат (плоский список позиций) → новый (блоки конфигураций)
+function normalizeConfigBlocks(cfg) {
+  if (!cfg || !cfg.length) return null;
+  if (Array.isArray(cfg[0] && cfg[0].items)) return cfg;
+  return [{ items: cfg.slice(), selected: true }];
+}
+
+function itemsTotal(items) {
+  return (items || []).reduce((s, c) => s + (c.price || 0) * (c.qty || 1), 0);
+}
+
+// сборка строк таблицы конфигурации в указанный tbody
+function buildConfigTableInto(tbody, savedList, onChange) {
   savedList = savedList || [];
   const pending = savedList.slice(); // не распределённые сохранённые позиции
-  const tbody = document.getElementById('configTableBody');
   tbody.innerHTML = '';
 
   CONFIG_LINES.forEach(line => {
@@ -939,11 +984,11 @@ function buildConfigTable(savedList) {
 
       if (saved && saved.price) cost.value = saved.price;
       fillParts();
-      cost.oninput = updateConfigSum;
+      cost.oninput = onChange;
       tdCost.appendChild(cost);
     }
 
-    sel.onchange = updateConfigSum;
+    sel.onchange = onChange;
 
     tdSel.appendChild(sel);
     tr.appendChild(tdLabel);
@@ -962,10 +1007,11 @@ function fmtMoney(n) {
   return n.toLocaleString('ru-RU') + ' ₽';
 }
 
-function updateConfigSum() {
+// сумма блока — показывается только когда заполнены все строки блока
+function updateBlockSum(blockEl) {
   let sum = 0;
   let allFilled = true;
-  document.querySelectorAll('#configTableBody tr').forEach(tr => {
+  blockEl.querySelectorAll('tbody tr').forEach(tr => {
     const sel = tr.querySelector('.config-part');
     if (!sel.value) { allFilled = false; return; }
     if (sel.value === 'none') return; // «Не нужно» — на сумму не влияет
@@ -975,13 +1021,127 @@ function updateConfigSum() {
     }
     sum += rowCost(tr);
   });
-  document.getElementById('configSum').textContent =
-    allFilled ? 'Сумма конфигурации: ' + fmtMoney(sum) : '';
+  const sumEl = blockEl.querySelector('.config-sum');
+  sumEl.textContent = allFilled ? 'Сумма конфигурации: ' + fmtMoney(sum) : '';
 }
 
-function collectConfig() {
+function buildConfigBlock(block, idx) {
+  block = block || {};
+  const div = document.createElement('div');
+  div.className = 'config-block' + (block.collapsed ? ' collapsed' : '') + (block.selected ? ' selected' : '');
+
+  // шапка: чекбокс выбранной конфигурации + сворачивание + удаление
+  const head = document.createElement('div');
+  head.className = 'config-block-head';
+
+  const title = document.createElement('label');
+  title.className = 'config-block-title';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = !!block.selected;
+  cb.title = 'Показывать стоимость этой конфигурации на главной странице';
+  cb.onchange = () => {
+    if (cb.checked) {
+      // выбранная конфигурация одна — снимаем галочки с остальных
+      document.querySelectorAll('#configBlocks .config-block').forEach(b => {
+        if (b === div) return;
+        b.classList.remove('selected');
+        const c = b.querySelector('.config-block-title input');
+        if (c) c.checked = false;
+      });
+      div.classList.add('selected');
+    } else {
+      div.classList.remove('selected');
+    }
+  };
+  title.appendChild(cb);
+  const tspan = document.createElement('span');
+  tspan.textContent = 'Конфигурация ' + (idx + 1);
+  title.appendChild(tspan);
+
+  const tools = document.createElement('div');
+  tools.className = 'config-block-tools';
+  const collapse = document.createElement('button');
+  collapse.type = 'button';
+  collapse.className = 'config-collapse';
+  collapse.textContent = block.collapsed ? '▸ Развернуть' : '▾ Свернуть';
+  collapse.onclick = () => {
+    div.classList.toggle('collapsed');
+    collapse.textContent = div.classList.contains('collapsed') ? '▸ Развернуть' : '▾ Свернуть';
+  };
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'config-block-del';
+  del.textContent = '✕';
+  del.title = 'Удалить конфигурацию';
+  del.onclick = () => {
+    if (document.querySelectorAll('#configBlocks .config-block').length <= 1) {
+      alert('Должна остаться хотя бы одна конфигурация');
+      return;
+    }
+    if (!confirm('Удалить «Конфигурация ' + (idx + 1) + '»?')) return;
+    const wasSelected = div.classList.contains('selected');
+    div.remove();
+    renumberConfigBlocks();
+    if (wasSelected) {
+      const first = document.querySelector('#configBlocks .config-block');
+      if (first) {
+        first.classList.add('selected');
+        const c = first.querySelector('.config-block-title input');
+        if (c) c.checked = true;
+      }
+    }
+  };
+  tools.appendChild(collapse);
+  tools.appendChild(del);
+
+  head.appendChild(title);
+  head.appendChild(tools);
+
+  // тело: таблица + сумма
+  const body = document.createElement('div');
+  body.className = 'config-block-body';
+  const table = document.createElement('table');
+  table.className = 'config-table';
+  table.innerHTML = '<thead><tr><th>Категория</th><th>Деталь</th><th>Стоимость, ₽</th></tr></thead>';
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+  const sumEl = document.createElement('div');
+  sumEl.className = 'config-sum';
+  body.appendChild(table);
+  body.appendChild(sumEl);
+
+  div.appendChild(head);
+  div.appendChild(body);
+
+  buildConfigTableInto(tbody, block.items || [], () => updateBlockSum(div));
+  updateBlockSum(div);
+  return div;
+}
+
+function renumberConfigBlocks() {
+  document.querySelectorAll('#configBlocks .config-block').forEach((b, i) => {
+    const span = b.querySelector('.config-block-title span');
+    if (span) span.textContent = 'Конфигурация ' + (i + 1);
+  });
+}
+
+function addConfigBlock() {
+  const container = document.getElementById('configBlocks');
+  container.appendChild(buildConfigBlock({}, container.querySelectorAll('.config-block').length));
+  renumberConfigBlocks();
+}
+
+function renderConfigBlocks(blocks) {
+  const container = document.getElementById('configBlocks');
+  container.innerHTML = '';
+  const list = (blocks && blocks.length) ? blocks : [{ items: [], selected: true }];
+  list.forEach((b, i) => container.appendChild(buildConfigBlock(b, i)));
+}
+
+function collectBlockItems(tbody) {
   const out = [];
-  document.querySelectorAll('#configTableBody tr').forEach((tr, i) => {
+  tbody.querySelectorAll('tr').forEach((tr, i) => {
     const line = CONFIG_LINES[i];
     const sel = tr.querySelector('.config-part');
     const val = sel.value;
@@ -991,8 +1151,7 @@ function collectConfig() {
       if (val === 'none') {
         out.push({ line: line.label, category: line.label, name: 'Не нужно', price: 0, skipped: true });
       } else {
-        const opt = sel.selectedOptions[0];
-        out.push({ line: line.label, category: line.label, name: val, price: Number(opt.dataset.price || 0), qty: 1 });
+        out.push({ line: line.label, category: line.label, name: val, price: Number(sel.selectedOptions[0].dataset.price || 0), qty: 1 });
       }
       return;
     }
@@ -1015,9 +1174,16 @@ function collectConfig() {
   return out;
 }
 
-function resetConfigRows(list) {
-  buildConfigTable(list || []);
-  updateConfigSum();
+function collectConfigBlocks() {
+  const out = [];
+  document.querySelectorAll('#configBlocks .config-block').forEach(div => {
+    out.push({
+      items: collectBlockItems(div.querySelector('tbody')),
+      selected: div.classList.contains('selected'),
+      collapsed: div.classList.contains('collapsed')
+    });
+  });
+  return out;
 }
 
 // ================= КАРТОЧКА ЗАКАЗА (РЕДАКТИРОВАНИЕ) =================
@@ -1035,7 +1201,7 @@ function openOrderCard(id) {
   document.getElementById('fLogin').value = o.login || '';
   document.getElementById('fSource').value = o.source || '';
   document.getElementById('fComment').value = o.comment;
-  resetConfigRows(o.config);
+  renderConfigBlocks(normalizeConfigBlocks(o.config));
   document.getElementById('fStatus').value = o.status;
   document.getElementById('modalOverlay').classList.add('open');
   document.getElementById('fName').focus();
@@ -1147,7 +1313,7 @@ function openAddModal() {
   document.getElementById('fLogin').value = '';
   document.getElementById('fSource').value = '';
   document.getElementById('fComment').value = '';
-  resetConfigRows();
+  renderConfigBlocks(null);
   document.getElementById('fStatus').value = 'Согласование';
   document.getElementById('modalOverlay').classList.add('open');
   document.getElementById('fName').focus();
@@ -1183,7 +1349,7 @@ async function saveOrder() {
     login: document.getElementById('fLogin').value.trim(),
     source: document.getElementById('fSource').value.trim(),
     comment: document.getElementById('fComment').value.trim(),
-    config: collectConfig(),
+    config: collectConfigBlocks(),
     status: document.getElementById('fStatus').value
   };
   const closed = row.status === 'Закрыт';
