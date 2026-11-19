@@ -521,7 +521,7 @@
     <input id="pLink" type="url" autocomplete="off" placeholder="https://...">
     <div class="modal-buttons">
       <button class="btn-cancel" onclick="closePartModal()">Закрыть</button>
-      <button class="btn-save" onclick="savePart()">Сохранить</button>
+      <button class="btn-save" id="btnPartSave" type="button" onclick="savePart()">Сохранить</button>
     </div>
   </div>
 </div>
@@ -670,7 +670,7 @@
 
     <div class="modal-buttons">
       <button class="btn-cancel" onclick="closeModal()">Закрыть</button>
-      <button class="btn-save" onclick="saveOrder()">Сохранить</button>
+      <button class="btn-save" id="btnOrderSave" type="button" onclick="saveOrder()">Сохранить</button>
     </div>
   </div>
 </div>
@@ -1107,6 +1107,8 @@ function fmtPrice(v) {
 }
 
 function openPartModal(id) {
+  partSaving = false;
+  setFormBusy('btnPartSave', false);
   partEditId = (typeof id === 'number') ? id : null;
   const p = partEditId ? parts.find(x => x.id === partEditId) : null;
   document.getElementById('partModalTitle').textContent = p ? 'Редактировать деталь' : 'Новая деталь';
@@ -1123,33 +1125,43 @@ function closePartModal() {
 }
 
 async function savePart() {
-  const name = document.getElementById('pName').value.trim();
-  if (!name) { alert('Укажите точное название детали'); return; }
+  if (partSaving) return;
+  partSaving = true;
+  setFormBusy('btnPartSave', true);
+  try {
+    const name = document.getElementById('pName').value.trim();
+    if (!name) { alert('Укажите точное название детали'); return; }
 
-  // проверка на дубли: совпадение даже при другом порядке слов и написании
-  const nn = normName(name);
-  const dup = parts.find(x => x.id !== partEditId && normName(x.name) === nn);
-  if (dup && !confirm('Похоже, такая деталь уже есть в базе:\n«' + dup.name + '» (' + dup.category + ')\n\nВсё равно добавить?')) {
-    return;
-  }
+    // проверка на дубли: совпадение даже при другом порядке слов и написании
+    const nn = normName(name);
+    const dup = parts.find(x => x.id !== partEditId && normName(x.name) === nn);
+    if (dup && !confirm('Похоже, такая деталь уже есть в базе:\n«' + dup.name + '» (' + dup.category + ')\n\nВсё равно добавить?')) {
+      return;
+    }
 
-  const row = {
-    category: document.getElementById('pCategory').value,
-    name: name,
-    price: parseFloat(document.getElementById('pPrice').value) || 0,
-    link: document.getElementById('pLink').value.trim()
-  };
-  if (partEditId) {
-    const { data, error } = await sb.from('parts').update(row).eq('id', partEditId).select().single();
-    if (error) { alert('Ошибка сохранения: ' + error.message); return; }
-    parts = parts.map(x => x.id === data.id ? data : x);
-  } else {
-    const { data, error } = await sb.from('parts').insert(row).select().single();
-    if (error) { alert('Ошибка сохранения: ' + error.message); return; }
-    parts.push(data);
+    const row = {
+      category: document.getElementById('pCategory').value,
+      name: name,
+      price: parseFloat(document.getElementById('pPrice').value) || 0,
+      link: document.getElementById('pLink').value.trim()
+    };
+    if (partEditId) {
+      const { data, error } = await sb.from('parts').update(row).eq('id', partEditId).select().single();
+      if (error) { alert('Ошибка сохранения: ' + error.message); return; }
+      parts = parts.map(x => x.id === data.id ? data : x);
+    } else {
+      const { data, error } = await sb.from('parts').insert(row).select().single();
+      if (error) { alert('Ошибка сохранения: ' + error.message); return; }
+      parts.push(data);
+    }
+    closePartModal();
+    render();
+  } catch (e) {
+    alert('Ошибка сохранения: ' + e.message);
+  } finally {
+    partSaving = false;
+    setFormBusy('btnPartSave', false);
   }
-  closePartModal();
-  render();
 }
 
 async function deletePart(id) {
@@ -1453,6 +1465,8 @@ function collectConfigBlocks() {
 
 // ================= КАРТОЧКА ЗАКАЗА (РЕДАКТИРОВАНИЕ) =================
 function openOrderCard(id) {
+  orderSaving = false;
+  setFormBusy('btnOrderSave', false);
   const o = orders.find(x => x.id === id) || archived.find(x => x.id === id);
   if (!o) return;
   editingId = id;
@@ -1569,6 +1583,8 @@ function toggleManualNumber() {
 }
 
 function openAddModal() {
+  orderSaving = false;
+  setFormBusy('btnOrderSave', false);
   editingId = null;
   originalOrderComment = '';
   document.getElementById('modalTitle').textContent = 'Новый заказ';
@@ -1598,6 +1614,18 @@ function closeModal() {
 }
 
 async function saveOrder() {
+  if (orderSaving) return;
+  orderSaving = true;
+  setFormBusy('btnOrderSave', true);
+  try { await _saveOrder(); }
+  catch (e) { alert('Ошибка сохранения: ' + e.message); }
+  finally {
+    orderSaving = false;
+    setFormBusy('btnOrderSave', false);
+  }
+}
+
+async function _saveOrder() {
   const name = document.getElementById('fName').value.trim();
   if (!name) { alert('Укажите имя заказчика'); return; }
 
@@ -1715,6 +1743,14 @@ function setStockSaving(on) {
     btn.disabled = on;
     btn.textContent = on ? 'Сохраняю…' : 'Сохранить';
   }
+}
+let partSaving = false;
+let orderSaving = false;
+function setFormBusy(btnId, on) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = on;
+  btn.textContent = on ? 'Сохраняю…' : 'Сохранить';
 }
 
 function visibleStockItems() {
