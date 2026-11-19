@@ -725,8 +725,8 @@ let orders = [];   // активные заказы
 let archived = []; // архив
 let nextNum = 1;   // счётчик номеров заказов
 let parts = [];    // комплектующие (вкладка «Железо»)
-let archiveDates = {}; // когда заказ ушёл в архив: { id: timestamp }. Для igor архив виден 5 дней.
-const ARCHIVE_VISIBLE_DAYS = 5;
+let archiveDates = {}; // когда заказ ушёл в архив: { id: timestamp }. Для igor архив виден 10 дней.
+const ARCHIVE_VISIBLE_DAYS = 10;
 
 // старые localStorage-функции нужны только для разового переноса данных со старой версии
 function load(key, def) {
@@ -804,8 +804,8 @@ function archiveVisibleToIgor(o) {
 
 function visibleArchive() {
   if (isAdmin()) return archived;
-  // igor видит только закрытые заказы последних 5 дней (отказы скрыты)
-  return archived.filter(o => o.status === 'Закрыт' && archiveVisibleToIgor(o));
+  // igor видит заказы со всеми статусами, но только за последние 10 дней
+  return archived.filter(archiveVisibleToIgor);
 }
 
 // Разовый перенос данных из localStorage старой версии в облако
@@ -1863,7 +1863,7 @@ async function _saveOrder() {
   }
 
   (closed ? archived : orders).push(saved);
-  // дата ухода в архив нужна, чтобы igor видел заказ только 5 дней
+  // дата ухода в архив нужна, чтобы igor видел заказ только 10 дней
   if (closed) markArchived(saved.id); else unmarkArchived(saved.id);
 
   // счётчик номеров растёт при занятом номере
@@ -2517,7 +2517,7 @@ document.getElementById('sDate').addEventListener('change', () => {
 });
 
 // Если igor держит архив открытым, обновляем его раз в минуту —
-// заказы старше 5 дней должны исчезнуть даже без перезагрузки страницы.
+// заказы старше 10 дней должны исчезнуть даже без перезагрузки страницы.
 setInterval(() => {
   if (currentTab === 'archive' && !isAdmin()) render();
 }, 60 * 1000);
