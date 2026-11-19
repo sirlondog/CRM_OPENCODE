@@ -652,7 +652,16 @@ function render() {
   if (currentTab === 'parts') { renderParts(); return; }
   document.getElementById('tableHead').innerHTML = ORDERS_HEAD;
   const isArchive = currentTab === 'archive';
-  const data = isArchive ? archived : orders;
+  // сортировка по номеру заказа: чем больше номер, тем выше в списке
+  const data = (isArchive ? archived : orders).slice().sort((a, b) => {
+    const na = parseInt(a.number, 10);
+    const nb = parseInt(b.number, 10);
+    if (!isNaN(na) && !isNaN(nb) && na !== nb) return nb - na;
+    // нечисловые номера — сравниваем как строки (по убыванию), при равенстве — по дате
+    const byNum = String(b.number).localeCompare(String(a.number), 'ru', { numeric: true });
+    if (byNum !== 0) return byNum;
+    return String(b.date || '').localeCompare(String(a.date || ''));
+  });
   const tbody = document.getElementById('tableBody');
   document.getElementById('stats').textContent =
     isArchive
