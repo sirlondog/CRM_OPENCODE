@@ -40,12 +40,19 @@ document.getElementById('go').onclick = async () => {
     });
     if (le) throw new Error('Вход: ' + le.message);
     say('Загружаю заказы…');
-    const [orders, parts, settings] = await Promise.all([
-      sb.from('orders').select('*'),
-      sb.from('parts').select('*'),
-      sb.from('settings').select('*')
-    ]);
-    for (const r of [orders, parts, settings]) if (r.error) throw new Error(r.error.message);
+    const orders = await sb.from('orders').select('*');
+    if (orders.error) throw new Error('Заказы: ' + orders.error.message);
+    say('Загружаю детали…');
+    const parts = await sb.from('parts').select('*');
+    if (parts.error) throw new Error('Детали: ' + parts.error.message);
+    let settings = null;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      say('Загружаю настройки и склад… попытка ' + attempt);
+      settings = await sb.from('settings').select('*');
+      if (!settings.error) break;
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    if (settings.error) throw new Error('Настройки: ' + settings.error.message);
     const dump = {
       exported_at: new Date().toISOString(),
       orders: orders.data || [],
@@ -58,9 +65,15 @@ document.getElementById('go').onclick = async () => {
     a.download = 'crm-backup-' + new Date().toISOString().slice(0,10) + '.json';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    let stockCount = '?';
+    try {
+      const raw = dump.settings.stock_items;
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      stockCount = parsed && parsed.items ? parsed.items.length : 0;
+    } catch (e) {}
     say('Готово! Файл сохранён: ' + a.download +
         '\nЗаказов: ' + dump.orders.length + ', деталей: ' + dump.parts.length +
-        '\nКлючей настроек: ' + Object.keys(dump.settings).length, 'ok');
+        ', позиций склада: ' + stockCount, 'ok');
   } catch (e) {
     say('Ошибка: ' + e.message, 'err');
   } finally { btn.disabled = false; }
