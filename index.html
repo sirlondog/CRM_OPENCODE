@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="robots" content="noindex, nofollow">
 <title>CRM-STARCOMP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -276,6 +275,7 @@
   .badge.soglasovanie { background: rgba(244,167,44,.12); color: var(--amber); border-color: rgba(244,167,44,.28); }
   .badge.vrabote      { background: rgba(77,159,255,.12); color: var(--blue); border-color: rgba(77,159,255,.28); }
   .badge.zakryt       { background: rgba(62,207,142,.12); color: var(--green); border-color: rgba(62,207,142,.28); }
+  .badge.otkaz        { background: rgba(255,82,82,.12); color: var(--red); border-color: rgba(255,82,82,.28); }
 
   .actions { white-space: nowrap; }
   .actions select {
@@ -359,6 +359,71 @@
   .btn-cancel { background: var(--surface-2); color: var(--text-light); border: 1px solid var(--border) !important; }
   .btn-cancel:hover { background: var(--surface-3); color: var(--text); }
 
+  /* ===== СКЛАД ===== */
+  .stock-rel-list { max-height: 170px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 6px; padding: 4px; background: var(--bg); }
+  .stock-rel-item { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  .stock-rel-item:hover { background: var(--surface-2); }
+  .stock-rel-item input[type="checkbox"] { width: auto !important; margin: 0; accent-color: var(--green); }
+  .stock-rel-empty { color: var(--text-muted); font-size: 12px; padding: 8px; }
+  .stock-selected { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .stock-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); font-size: 12px; }
+  .stock-chip button { border: 0; background: none; color: var(--text-muted); font-size: 16px; line-height: 1; cursor: pointer; }
+  .stock-chip button:hover { color: var(--red); }
+  .stock-file-label { margin-top: 12px !important; }
+  .stock-files { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .stock-file { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .stock-file a { color: var(--green); text-decoration: underline; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stock-file-size { color: var(--text-muted); font-size: 12px; }
+  .stock-file button { margin-left: auto; border: 0; background: none; color: var(--text-muted); font-size: 18px; cursor: pointer; }
+  .stock-file button:hover { color: var(--red); }
+  .stock-suggest-wrap { position: relative; }
+  .stock-suggest {
+    display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 20;
+    background: var(--surface-3); border: 1px solid var(--border); border-radius: 8px;
+    max-height: 220px; overflow-y: auto; margin-top: 3px;
+    box-shadow: 0 12px 30px rgba(0,0,0,.4);
+  }
+  .stock-suggest.open { display: block; }
+  .stock-suggest-item { padding: 8px 10px; font-size: 13px; cursor: pointer; }
+  .stock-suggest-item:hover, .stock-suggest-item.active { background: var(--surface-2); color: var(--green); }
+  .stock-suggest-empty { color: var(--text-muted); font-size: 12px; padding: 10px; }
+  .stock-suggest mark { background: rgba(62,207,142,.25); color: var(--green); border-radius: 2px; }
+  .stock-actions { display: none; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .stock-selected-count { color: var(--text-light); font-size: 13px; }
+  .btn-stock-act { padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); font-size: 13px; cursor: pointer; }
+  .btn-stock-act:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+  .btn-stock-act.danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+  .btn-stock-act:disabled { opacity: .4; cursor: not-allowed; }
+  .stock-views { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+  .stock-view-btn { padding: 5px 12px; border: none; border-radius: 6px; background: transparent; color: var(--text-light); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .stock-view-btn.active { background: var(--green); color: var(--on-green); font-weight: 500; }
+  .stock-view-btn:not(.active):hover { background: var(--surface-2); color: var(--text); }
+  .stock-view-btn span { opacity: .8; }
+  .stock-search-input { display: block; width: 260px; }
+  .dashboard { display: none; }
+  .dash-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .dash-controls label { font-size: 13px; color: var(--text-light); }
+  .dash-month { display: inline-block; min-width: 180px; }
+  .dash-cards { display: flex; gap: 16px; flex-wrap: wrap; }
+  .dash-card {
+    flex: 1 1 260px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px 24px; box-shadow: 0 8px 30px rgba(0,0,0,.35);
+  }
+  .dash-card.accent { border-color: var(--green); }
+  .dash-label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
+  .dash-value { margin-top: 10px; font-size: 32px; font-weight: 600; font-family: var(--mono); color: var(--text); }
+  .dash-card.accent .dash-value { color: var(--green); }
+  .dash-note { margin-top: 14px; font-size: 12px; color: var(--text-muted); }
+  .stock-check { width: auto !important; margin: 0; accent-color: var(--green); }
+  .stock-hint { color: var(--text-muted); font-size: 12px; margin-top: 4px; min-height: 15px; }
+  .stock-more { margin-top: 8px; border: 1px solid var(--border-soft); border-radius: 8px; padding: 5px 10px; background: var(--bg); }
+  .stock-more[open] { border-color: var(--border); }
+  .stock-more summary { cursor: pointer; color: var(--text-light); font-size: 13px; list-style: none; padding: 4px 0; }
+  .stock-more summary::-webkit-details-marker { display: none; }
+  .stock-more summary::before { content: '▸ '; color: var(--green); }
+  .stock-more[open] summary::before { content: '▾ '; }
+  .stock-more summary:hover { color: var(--green); }
+
   /* ===== МОБИЛЬНАЯ ВЕРСИЯ ===== */
   @media (max-width: 640px) {
     /* статистику (активных, согласование, в работе) не показываем */
@@ -415,6 +480,8 @@
         <button class="tab-btn active" id="tabOrders" onclick="switchTab('orders')">Заказы</button>
         <button class="tab-btn" id="tabArchive" onclick="switchTab('archive')">Архив</button>
         <button class="tab-btn" id="tabParts" onclick="switchTab('parts')">Железо</button>
+        <button class="tab-btn" id="tabStock" style="display:none" onclick="switchTab('stock')">Склад</button>
+        <button class="tab-btn" id="tabDashboard" style="display:none" onclick="switchTab('dashboard')">Дашборд</button>
         <button class="btn-add" id="btnAddPart" style="display:none" onclick="openPartModal()"><span class="btn-part-full">+ Добавить деталь</span><span class="btn-part-plus">+</span></button>
       </div>
       <div style="display:flex; align-items:center; gap:16px;">
@@ -424,10 +491,47 @@
         <datalist id="partsDatalist"></datalist>
         <select class="filter-select" id="partFilter" onchange="render()"></select>
         <button class="btn-add" id="btnAddOrder" title="Добавить заказ" onclick="openAddModal()"><span class="btn-part-full">+ Добавить заказ</span><span class="btn-part-plus">+</span></button>
+        <button class="btn-add" id="btnAddStock" style="display:none" title="Добавить позицию на склад" onclick="openStockModal()"><span class="btn-part-full">+ Добавить позицию</span><span class="btn-part-plus">+</span></button>
       </div>
     </div>
 
-    <div class="card">
+    <div class="stock-actions" id="stockActions">
+      <div class="stock-views" id="stockViews">
+        <button class="stock-view-btn active" id="stockViewActive" onclick="switchStockView(false)">Склад <span id="stockCountActive">0</span></button>
+        <button class="stock-view-btn" id="stockViewArchive" onclick="switchStockView(true)">Архив <span id="stockCountArchive">0</span></button>
+      </div>
+      <div class="stock-suggest-wrap" id="stockSearchWrap">
+        <input type="search" id="stockSearch" class="filter-input stock-search-input"
+               placeholder="Поиск по складу и архиву" autocomplete="off"
+               oninput="onStockSearch()" onfocus="onStockSearch()"
+               onblur="hideStockSearchSuggest(150)" onkeydown="stockSearchKey(event)">
+        <div class="stock-suggest" id="stockSearchSuggest"></div>
+      </div>
+      <span class="stock-selected-count" id="stockSelectedCount">Выбрано: 0</span>
+      <button class="btn-stock-act" id="btnStockArchive" onclick="moveSelectedStock(!stockArchiveView)">В архив</button>
+      <button class="btn-stock-act" id="btnStockDuplicate" onclick="duplicateSelectedStock()">Дублировать</button>
+      <button class="btn-stock-act danger" id="btnStockDelete" onclick="deleteSelectedStock()">Удалить</button>
+    </div>
+
+    <div class="dashboard" id="dashboardView">
+      <div class="dash-controls">
+        <label for="dashMonth">Месяц</label>
+        <select id="dashMonth" class="filter-select dash-month" onchange="renderDashboard()"></select>
+      </div>
+      <div class="dash-cards">
+        <div class="dash-card">
+          <div class="dash-label">Закрытых заказов</div>
+          <div class="dash-value" id="dashOrders">0</div>
+        </div>
+        <div class="dash-card accent">
+          <div class="dash-label">Прибыль</div>
+          <div class="dash-value" id="dashProfit">0 ₽</div>
+        </div>
+      </div>
+      <div class="dash-note">Прибыль = сумма выбранных термопаст MX в закрытых заказах за выбранный месяц. Отказы не учитываются.</div>
+    </div>
+
+    <div class="card" id="mainCard">
       <table>
         <thead id="tableHead"></thead>
         <tbody id="tableBody"></tbody>
@@ -449,8 +553,74 @@
     <label for="pLink">Ссылка на магазин</label>
     <input id="pLink" type="url" autocomplete="off" placeholder="https://...">
     <div class="modal-buttons">
-      <button class="btn-cancel" onclick="closePartModal()">Отмена</button>
-      <button class="btn-save" onclick="savePart()">Сохранить</button>
+      <button class="btn-cancel" onclick="closePartModal()">Закрыть</button>
+      <button class="btn-save" id="btnPartSave" type="button" onclick="savePart()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА СКЛАДА ============ -->
+<div class="modal-overlay" id="stockOverlay">
+  <div class="modal">
+    <h2 id="stockModalTitle">Новая позиция</h2>
+
+    <label>Дата</label>
+    <div class="number-row">
+      <input id="sDate" type="date">
+      <label class="manual-check"><input type="checkbox" id="sDateManual"> Указать вручную</label>
+    </div>
+
+    <label for="sPosition">Позиция (модель из «Железо»)</label>
+    <div class="stock-suggest-wrap">
+      <input id="sPosition" type="text" autocomplete="off" placeholder="Начните вводить модель..."
+             onfocus="renderPositionSuggest()" oninput="onPositionInput()"
+             onkeydown="onPositionKey(event)" onblur="hidePositionSuggest(150)">
+      <input type="hidden" id="sPositionId">
+      <div class="stock-suggest" id="sPositionSuggest"></div>
+    </div>
+
+    <label for="sSerial">Серийный номер</label>
+    <input id="sSerial" type="text" autocomplete="off" placeholder="Например: 1234567890">
+
+    <label for="sCost">Стоимость</label>
+    <input id="sCost" type="text" autocomplete="off" placeholder="Например: 45 000 ₽">
+
+    <label for="sWarranty">Гарантия</label>
+    <input id="sWarranty" type="text" autocomplete="off"
+           placeholder="Например: 2 года, 60 мес или до 19.07.2028"
+           oninput="previewWarranty()" onblur="applyWarranty()">
+    <div class="stock-hint" id="sWarrantyHint"></div>
+
+    <details class="stock-more" data-stock-more>
+      <summary>Поставщик</summary>
+      <label for="sSupplier">Поставщик</label>
+      <input id="sSupplier" type="text" autocomplete="off" placeholder="Например: ООО «ТехноСнаб»">
+    </details>
+
+    <details class="stock-more" data-stock-more>
+      <summary>Связан с заказами</summary>
+      <label for="sOrderSearch">Поиск по номеру, имени или логину</label>
+      <input id="sOrderSearch" type="search" autocomplete="off" placeholder="Например: 15840" oninput="renderStockRel()">
+      <div class="stock-rel-list" id="sOrderResults"></div>
+      <div class="stock-selected" id="sOrderSelected"></div>
+    </details>
+
+    <details class="stock-more" data-stock-more>
+      <summary>Чек</summary>
+      <label for="sCheckText">Описание чека</label>
+      <input id="sCheckText" type="text" autocomplete="off" placeholder="Например: чек №123 от 19.11.2026">
+    </details>
+
+    <details class="stock-more" data-stock-more>
+      <summary>Файлы чека</summary>
+      <label class="stock-file-label" for="stockFileInput">Прикрепить файлы</label>
+      <input id="stockFileInput" type="file" multiple accept="image/*,.pdf" onchange="addStockFiles(this.files)">
+      <div class="stock-files" id="sFiles"></div>
+    </details>
+
+    <div class="modal-buttons">
+      <button class="btn-cancel" onclick="closeStockModal()">Закрыть</button>
+      <button class="btn-save" id="btnStockSave" type="button" onclick="saveStockItem()">Сохранить</button>
     </div>
   </div>
 </div>
@@ -461,6 +631,7 @@
   <button class="menu-item" data-status="Согласование">🟡 Согласование</button>
   <button class="menu-item" data-status="В работе">🔵 В работе</button>
   <button class="menu-item" data-status="Закрыт">🟢 Закрыт (в архив)</button>
+  <button class="menu-item" data-status="Отказ">🔴 Отказ (в архив)</button>
 </div>
 
 <!-- ============ МОДАЛКА ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ ============ -->
@@ -527,13 +698,14 @@
           <option value="Согласование">Согласование</option>
           <option value="В работе">В работе</option>
           <option value="Закрыт">Закрыт (в архив)</option>
+          <option value="Отказ">Отказ (в архив)</option>
         </select>
       </div>
     </div>
 
     <div class="modal-buttons">
       <button class="btn-cancel" onclick="closeModal()">Закрыть</button>
-      <button class="btn-save" onclick="saveOrder()">Сохранить</button>
+      <button class="btn-save" id="btnOrderSave" type="button" onclick="saveOrder()">Сохранить</button>
     </div>
   </div>
 </div>
@@ -541,7 +713,7 @@
 <script>
 // ================= ХРАНЕНИЕ ДАННЫХ =================
 // Все данные лежат на вашем хостинге в MySQL. Страница разговаривает
-// с сервером через небольшой файл api.php.
+// с сервером через небольшой файл api.php. Внешние сервисы не нужны.
 const API_URL = 'api.php';
 
 async function api(action, payload) {
@@ -564,20 +736,206 @@ async function api(action, payload) {
   return data;
 }
 
+// Небольшая совместимая прослойка: остальной код работает так же,
+// как с облаком, но все запросы уходят на api.php.
+let _cache = null;
+let _cachePromise = null;
+async function ensureCache() {
+  if (!_cachePromise) {
+    _cachePromise = api('bootstrap').then(d => { _cache = d; return d; });
+  }
+  return _cachePromise;
+}
+async function refreshCache() {
+  _cachePromise = api('bootstrap').then(d => { _cache = d; return d; });
+  return _cachePromise;
+}
+function cachedRows(table) {
+  const d = _cache || {};
+  if (table === 'orders') return d.orders || [];
+  if (table === 'parts') return d.parts || [];
+  if (table === 'settings') {
+    const s = d.settings || {};
+    return Object.keys(s).map(k => ({ key: k, value: s[k] }));
+  }
+  return [];
+}
+
+class ApiQuery {
+  constructor(table) {
+    this.table = table;
+    this.op = null;
+    this.payload = null;
+    this.filters = [];
+    this._p = null;
+  }
+  select() { return this; }
+  order() { return this; }
+  eq(col, val) { this.filters.push([col, val]); return this; }
+  single() { return this; }
+  insert(row) { this.op = 'insert'; this.payload = row; return this; }
+  update(row) { this.op = 'update'; this.payload = row; return this; }
+  upsert(row) { this.op = 'upsert'; this.payload = row; return this; }
+  delete() { this.op = 'delete'; return this; }
+  then(ok, bad) { return this.execute().then(ok, bad); }
+  execute() {
+    if (!this._p) this._p = this._run();
+    return this._p;
+  }
+  id() {
+    const f = this.filters.find(x => x[0] === 'id');
+    return f ? f[1] : null;
+  }
+  async _run() {
+    // чтение — из общего кэша, чтобы не дёргать сервер три раза подряд
+    if (!this.op) {
+      await ensureCache();
+      return { data: cachedRows(this.table), error: null };
+    }
+    try {
+      let data = null;
+      if (this.table === 'orders') {
+        const id = this.id();
+        let row = Object.assign({}, this.payload || {});
+        if (id != null) row.id = id;
+        if (this.op === 'update') {
+          const old = cachedRows('orders').find(x => String(x.id) === String(id)) || {};
+          row = Object.assign({}, old, row, { id: id });
+        }
+        if (this.op === 'insert' && row.archived === undefined &&
+            (row.status === 'Закрыт' || row.status === 'Отказ')) {
+          row.archived = true;
+        }
+        const d = await api('order_save', row);
+        data = d.order;
+      } else if (this.table === 'parts') {
+        const id = this.id();
+        let row = Object.assign({}, this.payload || {});
+        if (id != null) row.id = id;
+        if (this.op === 'update') {
+          const old = cachedRows('parts').find(x => String(x.id) === String(id)) || {};
+          row = Object.assign({}, old, row, { id: id });
+        }
+        if (this.op === 'delete') {
+          await api('part_delete', { id: id });
+        } else {
+          const d = await api('part_save', row);
+          data = d.part;
+        }
+      } else if (this.table === 'settings') {
+        const rows = Array.isArray(this.payload) ? this.payload : [this.payload];
+        for (const r of rows) {
+          if (!r || r.key === undefined || r.key === null) continue;
+          await api('settings_set', {
+            k: r.key,
+            v: r.value === undefined || r.value === null ? '' : String(r.value)
+          });
+        }
+      }
+      await refreshCache();
+      return { data: data, error: null };
+    } catch (e) {
+      return { data: null, error: { message: e.message } };
+    }
+  }
+}
+
+const sb = { from(table) { return new ApiQuery(table); } };
+
 let editingId = null; // id заказа в режиме редактирования
 
 let orders = [];   // активные заказы
 let archived = []; // архив
 let nextNum = 1;   // счётчик номеров заказов
 let parts = [];    // комплектующие (вкладка «Железо»)
+let archiveDates = {}; // когда заказ ушёл в архив: { id: timestamp }. Для igor архив виден 10 дней.
+const ARCHIVE_VISIBLE_DAYS = 10;
+
+// старые localStorage-функции нужны только для разового переноса данных со старой версии
+function load(key, def) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? def; }
+  catch { return def; }
+}
 
 async function loadAll() {
-  const d = await api('bootstrap');
-  const all = d.orders || [];
-  orders = all.filter(x => !x.archived);
-  archived = all.filter(x => x.archived);
-  parts = d.parts || [];
-  nextNum = Number((d.settings || {}).nextnum) || 1;
+  const [o, p, s] = await Promise.all([
+    sb.from('orders').select('*').order('id'),
+    sb.from('parts').select('*').order('id'),
+    sb.from('settings').select('*')
+  ]);
+  const oRows = o.data || [], pRows = p.data || [], sRows = s.data || [];
+  if (o.error || p.error || s.error) {
+    const e = (o.error || p.error || s.error);
+    alert('Ошибка загрузки данных: ' + e.message);
+  }
+  orders = oRows.filter(x => !x.archived);
+  archived = oRows.filter(x => x.archived);
+  parts = pRows;
+  const nn = sRows.find(x => x.key === 'nextnum');
+  nextNum = nn ? (Number(nn.value) || 1) : 1;
+  const sr = sRows.find(x => x.key === 'stock_items');
+  stock = parseStockValue(sr && sr.value);
+  const ar = sRows.find(x => x.key === 'archive_dates');
+  archiveDates = parseArchiveDates(ar && ar.value);
+}
+
+function parseArchiveDates(v) {
+  if (!v) return {};
+  try {
+    const o = JSON.parse(v);
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+  } catch (e) { return {}; }
+}
+
+async function saveArchiveDates() {
+  const { error } = await sb.from('settings')
+    .upsert({ key: 'archive_dates', value: JSON.stringify(archiveDates) });
+  if (error) throw new Error(error.message);
+}
+
+function markArchived(id) {
+  if (id == null) return;
+  archiveDates[id] = Date.now();
+  saveArchiveDates().catch(e => console.warn('Не удалось сохранить дату архива: ' + e.message));
+}
+function unmarkArchived(id) {
+  if (id == null) return;
+  delete archiveDates[id];
+  saveArchiveDates().catch(e => console.warn('Не удалось сохранить дату архива: ' + e.message));
+}
+
+// Дата перемещения в архив. Для старых заказов, у которых даты нет,
+// используем дату самого заказа — они сразу скрываются у igor.
+function archiveTime(o) {
+  if (!o) return 0;
+  const v = archiveDates[o.id] || o.archivedAt || o.archived_at;
+  if (v) {
+    const n = Number(v);
+    if (!isNaN(n)) return n;
+    const d = Date.parse(v);
+    if (!isNaN(d)) return d;
+  }
+  const d = Date.parse(String(o.date || ''));
+  return isNaN(d) ? 0 : d;
+}
+
+function archiveVisibleToIgor(o) {
+  const t = archiveTime(o);
+  if (!t) return false;
+  return Date.now() - t < ARCHIVE_VISIBLE_DAYS * 24 * 60 * 60 * 1000;
+}
+
+function visibleArchive() {
+  if (isAdmin()) return archived;
+  // igor видит заказы со всеми статусами, но только за последние 10 дней
+  return archived.filter(archiveVisibleToIgor);
+}
+
+// Разовый перенос из localStorage нужен был только для облачной версии.
+// На хостинге данные уже лежат в MySQL — просто чистим старые ключи.
+async function migrateLocalData() {
+  ['crm_orders', 'crm_archived', 'crm_parts', 'crm_nextnum', 'crm_pass', 'crm_auth']
+    .forEach(k => localStorage.removeItem(k));
 }
 
 // ================= ВХОД =================
@@ -613,15 +971,6 @@ async function doLogout() {
 }
 let currentUserLabelStr = '';
 let originalOrderComment = '';
-
-function userLabelFromSession(session) {
-  const u = session && session.user;
-  if (!u) return '';
-  const email = (u.email || '').toLowerCase();
-  if (email === 'igor@star-comp.ru') return 'igor';
-  if (email === 'admin@star-comp.ru') return 'admin';
-  return u.email || (u.user_metadata && (u.user_metadata.login || u.user_metadata.name)) || 'user';
-}
 
 async function refreshCurrentUserLabel() {
   try {
@@ -672,6 +1021,8 @@ async function enterApp() {
   if (login) login.remove();
   document.getElementById('app').style.display = 'block';
   await refreshCurrentUserLabel();
+  updateAdminUI();
+  await migrateLocalData();
   await loadAll();
   render();
 }
@@ -683,17 +1034,34 @@ function switchTab(tab) {
   document.getElementById('tabOrders').classList.toggle('active', tab === 'orders');
   document.getElementById('tabArchive').classList.toggle('active', tab === 'archive');
   document.getElementById('tabParts').classList.toggle('active', tab === 'parts');
+  document.getElementById('tabStock').classList.toggle('active', tab === 'stock');
+  document.getElementById('tabDashboard').classList.toggle('active', tab === 'dashboard');
   const isParts = tab === 'parts';
+  const isStock = tab === 'stock' && isAdmin();
+  const isDash = tab === 'dashboard' && isAdmin();
   document.getElementById('partFilter').style.display = isParts ? 'inline-block' : 'none';
   document.getElementById('partSearch').style.display = isParts ? 'inline-block' : 'none';
-  document.getElementById('btnAddOrder').style.display = isParts ? 'none' : 'inline-block';
+  document.getElementById('btnAddOrder').style.display = (isParts || isStock || isDash) ? 'none' : 'inline-block';
   document.getElementById('btnAddPart').style.display = isParts ? 'inline-block' : 'none';
+  document.getElementById('btnAddStock').style.display =
+    (isStock && !stockArchiveView) ? 'inline-block' : 'none';
+  document.getElementById('stockActions').style.display = isStock ? 'flex' : 'none';
+  document.getElementById('stockViewActive').classList.toggle('active', !stockArchiveView);
+  document.getElementById('stockViewArchive').classList.toggle('active', stockArchiveView);
+  document.getElementById('dashboardView').style.display = isDash ? 'block' : 'none';
+  document.getElementById('mainCard').style.display = isDash ? 'none' : '';
+  document.getElementById('stats').style.display = (isStock || isDash) ? 'none' : '';
+  if (!isStock) {
+    stockSelected.clear(); stockArchiveView = false;
+    document.getElementById('stockSearch').value = '';
+    hideStockSearchSuggest();
+  }
   render();
 }
 
 // ================= ОТРИСОВКА =================
 function statusBadge(status) {
-  const cls = { 'Согласование': 'soglasovanie', 'В работе': 'vrabote', 'Закрыт': 'zakryt' }[status] || '';
+  const cls = { 'Согласование': 'soglasovanie', 'В работе': 'vrabote', 'Закрыт': 'zakryt', 'Отказ': 'otkaz' }[status] || '';
   return '<span class="badge ' + cls + '">' + status + '</span>';
 }
 
@@ -713,10 +1081,13 @@ function configTotal(o) {
 
 function render() {
   if (currentTab === 'parts') { renderParts(); return; }
+  if (currentTab === 'stock') { renderStock(); return; }
+  if (currentTab === 'dashboard') { renderDashboard(); return; }
   document.getElementById('tableHead').innerHTML = ORDERS_HEAD;
   const isArchive = currentTab === 'archive';
+  const archiveList = visibleArchive();
   // сортировка по номеру заказа: чем больше номер, тем выше в списке
-  const data = (isArchive ? archived : orders).slice().sort((a, b) => {
+  const data = (isArchive ? archiveList : orders).slice().sort((a, b) => {
     const na = parseInt(a.number, 10);
     const nb = parseInt(b.number, 10);
     if (!isNaN(na) && !isNaN(nb) && na !== nb) return nb - na;
@@ -728,10 +1099,11 @@ function render() {
   const tbody = document.getElementById('tableBody');
   document.getElementById('stats').textContent =
     isArchive
-      ? 'Заказов в архиве: ' + archived.length
+      ? 'Заказов в архиве: ' + archiveList.length
       : 'Активных заказов: ' + orders.length +
         ' | Согласование: ' + orders.filter(o => o.status === 'Согласование').length +
-        ' | В работе: ' + orders.filter(o => o.status === 'В работе').length;
+        ' | В работе: ' + orders.filter(o => o.status === 'В работе').length +
+        ' | Отказ: ' + orders.filter(o => o.status === 'Отказ').length;
 
   if (data.length === 0) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="5">' +
@@ -756,7 +1128,7 @@ function render() {
 }
 
 function statusBadge(status, id) {
-  const cls = { 'Согласование': 'soglasovanie', 'В работе': 'vrabote', 'Закрыт': 'zakryt' }[status] || '';
+  const cls = { 'Согласование': 'soglasovanie', 'В работе': 'vrabote', 'Закрыт': 'zakryt', 'Отказ': 'otkaz' }[status] || '';
   return '<span class="badge ' + cls + '" title="Нажмите, чтобы сменить статус" onclick="openStatusMenu(event, ' + id + ')">' + status + '</span>';
 }
 
@@ -843,7 +1215,7 @@ function fmtDate(d) {
 const CATEGORIES = [
   'Процессор', 'Видеокарта', 'Материнская плата', 'Оперативная память',
   'Накопитель', 'Блок питания', 'Корпус', 'Воздушное охлаждение',
-  'Жидкостное охлаждение', 'Вентилятор'
+  'Жидкостное охлаждение', 'Вентилятор', 'Монитор'
 ];
 let partEditId = null;
 
@@ -916,6 +1288,8 @@ function fmtPrice(v) {
 }
 
 function openPartModal(id) {
+  partSaving = false;
+  setFormBusy('btnPartSave', false);
   partEditId = (typeof id === 'number') ? id : null;
   const p = partEditId ? parts.find(x => x.id === partEditId) : null;
   document.getElementById('partModalTitle').textContent = p ? 'Редактировать деталь' : 'Новая деталь';
@@ -932,49 +1306,57 @@ function closePartModal() {
 }
 
 async function savePart() {
-  const name = document.getElementById('pName').value.trim();
-  if (!name) { alert('Укажите точное название детали'); return; }
-
-  // проверка на дубли: совпадение даже при другом порядке слов и написании
-  const nn = normName(name);
-  const dup = parts.find(x => x.id !== partEditId && normName(x.name) === nn);
-  if (dup && !confirm('Похоже, такая деталь уже есть в базе:\n«' + dup.name + '» (' + dup.category + ')\n\nВсё равно добавить?')) {
-    return;
-  }
-
-  const row = {
-    category: document.getElementById('pCategory').value,
-    name: name,
-    price: parseFloat(document.getElementById('pPrice').value) || 0,
-    link: document.getElementById('pLink').value.trim()
-  };
+  if (partSaving) return;
+  partSaving = true;
+  setFormBusy('btnPartSave', true);
   try {
-    if (partEditId) row.id = partEditId;
-    const res = await api('part_save', row);
-    const saved = res.part;
-    parts = partEditId
-      ? parts.map(x => x.id === saved.id ? saved : x)
-      : parts.concat([saved]);
-  } catch (e) { alert('Ошибка сохранения: ' + e.message); return; }
-  closePartModal();
-  render();
+    const name = document.getElementById('pName').value.trim();
+    if (!name) { alert('Укажите точное название детали'); return; }
+
+    // проверка на дубли: совпадение даже при другом порядке слов и написании
+    const nn = normName(name);
+    const dup = parts.find(x => x.id !== partEditId && normName(x.name) === nn);
+    if (dup && !confirm('Похоже, такая деталь уже есть в базе:\n«' + dup.name + '» (' + dup.category + ')\n\nВсё равно добавить?')) {
+      return;
+    }
+
+    const row = {
+      category: document.getElementById('pCategory').value,
+      name: name,
+      price: parseFloat(document.getElementById('pPrice').value) || 0,
+      link: document.getElementById('pLink').value.trim()
+    };
+    if (partEditId) {
+      const { data, error } = await sb.from('parts').update(row).eq('id', partEditId).select().single();
+      if (error) { alert('Ошибка сохранения: ' + error.message); return; }
+      parts = parts.map(x => x.id === data.id ? data : x);
+    } else {
+      const { data, error } = await sb.from('parts').insert(row).select().single();
+      if (error) { alert('Ошибка сохранения: ' + error.message); return; }
+      parts.push(data);
+    }
+    closePartModal();
+    render();
+  } catch (e) {
+    alert('Ошибка сохранения: ' + e.message);
+  } finally {
+    partSaving = false;
+    setFormBusy('btnPartSave', false);
+  }
 }
 
 async function deletePart(id) {
   const p = parts.find(x => x.id === id);
   if (!p) return;
   if (!confirm('Удалить деталь «' + p.name + '»?')) return;
-  try {
-    await api('part_delete', { id: id });
-  } catch (e) { alert('Ошибка удаления: ' + e.message); return; }
+  const { error } = await sb.from('parts').delete().eq('id', id);
+  if (error) { alert('Ошибка удаления: ' + error.message); return; }
   parts = parts.filter(x => x.id !== id);
   render();
 }
 
-// закрытие модалки детали по клику на фон
-document.getElementById('partOverlay').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closePartModal();
-});
+// Окна НЕ закрываются по клику на фон — только кнопками внизу окна.
+// Это защищает от случайного закрытия и потери введённых данных.
 
 // ================= КОНФИГУРАЦИЯ В ЗАКАЗЕ (СТАТИЧНАЯ ТАБЛИЦА) =================
 // Первый столбец — фиксированные строки, второй — деталь из базы «Железо»,
@@ -992,6 +1374,65 @@ const CONFIG_LINES = [
   { label: 'Корпус',             cats: ['Корпус'] },
   { label: 'Вентиляторы',        cats: ['Вентилятор'] }
 ];
+
+// ================= ДАШБОРД (только для логина admin) =================
+const DASH_MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+function dashMonthKey(date) {
+  const s = String(date || '').trim();
+  let m = s.match(/^(\d{4})-(\d{2})/);
+  if (m) return m[1] + '-' + m[2];
+  m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+  if (m) return m[3] + '-' + String(m[2]).padStart(2, '0');
+  return '';
+}
+function dashMonthLabel(key) {
+  const p = String(key).split('-');
+  const n = Number(p[1]) - 1;
+  return (DASH_MONTHS[n] || p[1]) + ' ' + p[0];
+}
+function dashClosedOrders() {
+  return archived.concat(orders).filter(o => o.status === 'Закрыт');
+}
+function dashThermoValue(item) {
+  if (!item) return 0;
+  if (String(item.line || item.category || '') !== 'Термопаста') return 0;
+  const name = String(item.name || '').trim().toUpperCase();
+  if (!name || name === 'НЕ НУЖНО') return 0;
+  const thermoLine = CONFIG_LINES.find(l => l.thermo);
+  const fixed = thermoLine ? thermoLine.thermo : [];
+  const found = fixed.find(t => String(t[0]).toUpperCase() === name);
+  return Number(item.price) || (found ? found[1] : 0);
+}
+function dashOrderProfit(o) {
+  const blocks = normalizeConfigBlocks(o.config);
+  if (!blocks) return 0;
+  const active = blocks.filter(b => b.selected !== false);
+  const list = active.length ? active : blocks;
+  return list.reduce((sum, b) =>
+    sum + (b.items || []).reduce((s, it) => s + dashThermoValue(it), 0), 0);
+}
+function fillDashMonths(keep) {
+  const sel = document.getElementById('dashMonth');
+  const keys = {};
+  const d = new Date();
+  keys[d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')] = 1;
+  dashClosedOrders().forEach(o => { const k = dashMonthKey(o.date); if (k) keys[k] = 1; });
+  const list = Object.keys(keys).sort().reverse();
+  sel.innerHTML = list.map(k => '<option value="' + k + '">' + dashMonthLabel(k) + '</option>').join('');
+  sel.value = (keep && list.includes(keep)) ? keep : list[0];
+}
+function renderDashboard() {
+  if (!isAdmin()) return;
+  const sel = document.getElementById('dashMonth');
+  const prev = sel.value;
+  fillDashMonths(prev);
+  const key = sel.value;
+  const list = dashClosedOrders().filter(o => dashMonthKey(o.date) === key);
+  document.getElementById('dashOrders').textContent = list.length;
+  const profit = list.reduce((s, o) => s + dashOrderProfit(o), 0);
+  document.getElementById('dashProfit').textContent = profit.toLocaleString('ru-RU') + ' ₽';
+}
 
 // старый формат (плоский список позиций) → новый (блоки конфигураций)
 function normalizeConfigBlocks(cfg) {
@@ -1264,6 +1705,8 @@ function collectConfigBlocks() {
 
 // ================= КАРТОЧКА ЗАКАЗА (РЕДАКТИРОВАНИЕ) =================
 function openOrderCard(id) {
+  orderSaving = false;
+  setFormBusy('btnOrderSave', false);
   const o = orders.find(x => x.id === id) || archived.find(x => x.id === id);
   if (!o) return;
   editingId = id;
@@ -1325,20 +1768,22 @@ async function applyStatus(id, status) {
   if (!o) { o = archived.find(x => x.id === id); fromArchive = true; }
   if (!o) { closeStatusMenu(); return; }
 
-  const toArchive = status === 'Закрыт';
-  try {
-    await api('order_status', { id: id, status: status, archived: toArchive });
-  } catch (e) { alert('Ошибка: ' + e.message); closeStatusMenu(); return; }
+  // Закрыт и Отказ — завершённые статусы, оба уходят в архив
+  const toArchive = status === 'Закрыт' || status === 'Отказ';
+  const { error } = await sb.from('orders').update({ status: status, archived: toArchive }).eq('id', id);
+  if (error) { alert('Ошибка: ' + error.message); closeStatusMenu(); return; }
 
   o.status = status;
+  // запоминаем дату ухода в архив (и сбрасываем при возврате в работу)
+  if (toArchive) markArchived(id); else unmarkArchived(id);
   if (fromArchive) {
-    // из архива: любой статус кроме «Закрыт» возвращает заказ в работу
+    // из архива: «Согласование» и «В работе» возвращают заказ в работу
     if (!toArchive) {
       archived = archived.filter(x => x.id !== id);
       orders.push(o);
     }
   } else if (toArchive) {
-    // закрытые автоматически уходят в архив
+    // закрытые и отказы автоматически уходят в архив
     orders = orders.filter(x => x.id !== id);
     archived.push(o);
   }
@@ -1381,6 +1826,8 @@ function toggleManualNumber() {
 }
 
 function openAddModal() {
+  orderSaving = false;
+  setFormBusy('btnOrderSave', false);
   editingId = null;
   originalOrderComment = '';
   document.getElementById('modalTitle').textContent = 'Новый заказ';
@@ -1410,6 +1857,18 @@ function closeModal() {
 }
 
 async function saveOrder() {
+  if (orderSaving) return;
+  orderSaving = true;
+  setFormBusy('btnOrderSave', true);
+  try { await _saveOrder(); }
+  catch (e) { alert('Ошибка сохранения: ' + e.message); }
+  finally {
+    orderSaving = false;
+    setFormBusy('btnOrderSave', false);
+  }
+}
+
+async function _saveOrder() {
   const name = document.getElementById('fName').value.trim();
   if (!name) { alert('Укажите имя заказчика'); return; }
 
@@ -1444,15 +1903,41 @@ async function saveOrder() {
     config: collectConfigBlocks(),
     status: document.getElementById('fStatus').value
   };
-  const closed = row.status === 'Закрыт';
+  const closed = row.status === 'Закрыт' || row.status === 'Отказ';
+
+  // Пробуем сохранить всё; если в таблице orders ещё нет какой-то колонки
+  // (source, payment, ship, address...), убираем её из запроса и повторяем.
+  // Лишние поля api.php просто игнорирует.
+  async function write(payload) {
+    if (editingId) {
+      return sb.from('orders').update({ ...payload, archived: closed }).eq('id', editingId).select().single();
+    }
+    return sb.from('orders').insert(payload).select().single();
+  }
 
   let saved;
-  try {
-    const payload = { ...row, archived: closed };
-    if (editingId) payload.id = editingId;
-    const res = await api('order_save', payload);
-    saved = res.order;
-  } catch (e) { alert('Ошибка сохранения: ' + e.message); return; }
+  let payload = { ...row };
+  let res = null;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    res = await write(payload);
+    if (!res.error) break;
+    // ищем в сообщении об ошибке имя отсутствующей колонки
+    const msg = res.error.message || '';
+    const matches = msg.match(/'([a-zA-Z_][a-zA-Z0-9_]*)'/g) || [];
+    let removed = false;
+    for (const m of matches) {
+      const col = m.slice(1, -1);
+      if (payload.hasOwnProperty(col)) {
+        console.warn('Колонки нет в таблице orders: ' + col + ' — сохраняю без неё');
+        delete payload[col];
+        removed = true;
+        break;
+      }
+    }
+    if (!removed) break;
+  }
+  if (res.error) { alert('Ошибка сохранения: ' + res.error.message); return; }
+  saved = res.data;
 
   if (editingId) {
     orders = orders.filter(x => x.id !== saved.id);
@@ -1460,12 +1945,14 @@ async function saveOrder() {
   }
 
   (closed ? archived : orders).push(saved);
+  // дата ухода в архив нужна, чтобы igor видел заказ только 10 дней
+  if (closed) markArchived(saved.id); else unmarkArchived(saved.id);
 
   // счётчик номеров растёт при занятом номере
   const usedNum = parseInt(saved.number, 10);
   if (!isNaN(usedNum) && usedNum >= nextNum) {
     nextNum = usedNum + 1;
-    api('settings_set', { k: 'nextnum', v: nextNum }).catch(() => {});
+    sb.from('settings').upsert({ key: 'nextnum', value: nextNum }).then(() => {});
   }
 
   originalOrderComment = commentFinal || '';
@@ -1481,13 +1968,649 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeStatusMenu(); closePartModal(); }
 });
 
+// ================= СКЛАД (только для логина admin) =================
+let stock = [];                 // позиции склада
+let stockEditId = null;         // id редактируемой позиции
+let stockRelated = [];          // выбранные id заказов
+let stockFiles = [];            // файлы чека {name, mime, size, data}
+let posSuggest = [];            // подсказки моделей из «Железо»
+let posActive = -1;             // активная подсказка при выборе стрелками
+let stockSelected = new Set();  // отмеченные галочками позиции склада
+let stockPendingId = null;      // id будущей записи — нужен для имён файлов
+let stockArchiveView = false;   // смотрим архив позиций вместо активного склада
+let stockFocusTimer = null;     // отложенный фокус поля «Позиция» для новой записи
+let stockSaving = false;        // защита от повторного нажатия «Сохранить»
+
+function setStockSaving(on) {
+  stockSaving = on;
+  const btn = document.getElementById('btnStockSave');
+  if (btn) {
+    btn.disabled = on;
+    btn.textContent = on ? 'Сохраняю…' : 'Сохранить';
+  }
+}
+let partSaving = false;
+let orderSaving = false;
+function setFormBusy(btnId, on) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = on;
+  btn.textContent = on ? 'Сохраняю…' : 'Сохранить';
+}
+
+function visibleStockItems() {
+  return stock.filter(s => !!s.archived === stockArchiveView);
+}
+function switchStockView(archived) {
+  if (!isAdmin()) return;
+  stockArchiveView = !!archived;
+  stockSelected.clear();
+  document.getElementById('stockViewActive').classList.toggle('active', !stockArchiveView);
+  document.getElementById('stockViewArchive').classList.toggle('active', stockArchiveView);
+  document.getElementById('btnAddStock').style.display =
+    (currentTab === 'stock' && !stockArchiveView) ? 'inline-block' : 'none';
+  render();
+}
+
+function isAdmin() { return currentUserLabelStr === 'admin'; }
+
+function updateAdminUI() {
+  const on = isAdmin();
+  document.getElementById('tabStock').style.display = on ? '' : 'none';
+  document.getElementById('tabDashboard').style.display = on ? '' : 'none';
+  if (!on) document.getElementById('stockActions').style.display = 'none';
+  if (!on && (currentTab === 'stock' || currentTab === 'dashboard')) switchTab('orders');
+  else document.getElementById('btnAddStock').style.display =
+    (on && currentTab === 'stock' && !stockArchiveView) ? 'inline-block' : 'none';
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+    '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function parseStockValue(v) {
+  if (!v) return [];
+  try {
+    const o = JSON.parse(v);
+    return Array.isArray(o) ? o : (Array.isArray(o.items) ? o.items : []);
+  } catch (e) { return []; }
+}
+
+async function saveStockValue() {
+  const { error } = await sb.from('settings')
+    .upsert({ key: 'stock_items', value: JSON.stringify({ items: stock }) });
+  if (error) throw new Error(error.message);
+}
+
+function partName(id) {
+  const p = parts.find(x => String(x.id) === String(id));
+  if (p) return p.name;
+  if (!id) return '—';
+  // раньше в складе мог быть просто текст — показываем его как есть
+  return /^\d+$/.test(String(id)) ? '—' : String(id);
+}
+function orderById(id) {
+  return orders.find(x => x.id === id) || archived.find(x => x.id === id);
+}
+
+// ---- Поиск по складу: ищет во всех полях, включая архив ----
+let stockSearchRowsList = [];
+let stockSearchActive = -1;
+function stockSearchText(s) {
+  const p = parts.find(x => String(x.id) === String(s.position));
+  const rel = (s.related || []).map(id => orderById(id)).filter(Boolean)
+    .map(o => '№' + o.number + ' ' + (o.name || '') + ' ' + (o.login || ''));
+  const files = (s.files || []).map(f => String(f.name || '') + ' ' + String(f.origName || ''));
+  return [
+    fmtDate(s.date), partName(s.position), s.position, p && p.category,
+    s.serial, s.cost, s.supplier, s.warranty, s.checkText,
+    rel.join(' '), files.join(' '), s.id, s.archived ? 'архив' : 'склад'
+  ].filter(v => v !== null && v !== undefined).join(' ').toLowerCase();
+}
+function stockSearchRows(q) {
+  if (!q) return [];
+  return stock.filter(s => stockSearchText(s).indexOf(q) >= 0)
+    .slice().sort((a, b) =>
+      String(b.date || '').localeCompare(String(a.date || '')) || (b.id - a.id))
+    .slice(0, 12);
+}
+function stockRowLabel(s) {
+  return fmtDate(s.date) + ' · ' + partName(s.position) +
+    (s.serial ? ' · ' + s.serial : '') +
+    (s.supplier ? ' · ' + s.supplier : '') +
+    (s.archived ? ' · АРХИВ' : '');
+}
+function renderStockSearchSuggest() {
+  const box = document.getElementById('stockSearchSuggest');
+  const raw = (document.getElementById('stockSearch').value || '').trim();
+  const q = raw.toLowerCase();
+  if (!q) { box.innerHTML = ''; box.classList.remove('open'); return; }
+  stockSearchRowsList = stockSearchRows(q);
+  stockSearchActive = -1;
+  box.innerHTML = stockSearchRowsList.length
+    ? stockSearchRowsList.map((s, i) =>
+        '<div class="stock-suggest-item" onmousedown="chooseStockSearch(' + i + ')">' +
+        positionHighlight(stockRowLabel(s), raw) + '</div>').join('')
+    : '<div class="stock-suggest-empty">Ничего не найдено ни на складе, ни в архиве</div>';
+  box.classList.add('open');
+}
+function hideStockSearchSuggest(delay) {
+  const box = document.getElementById('stockSearchSuggest');
+  if (delay) setTimeout(() => box.classList.remove('open'), delay);
+  else box.classList.remove('open');
+}
+function onStockSearch() {
+  renderStock();
+  renderStockSearchSuggest();
+}
+function chooseStockSearch(i) {
+  const s = stockSearchRowsList[i];
+  if (!s) return;
+  document.getElementById('stockSearch').value = '';
+  hideStockSearchSuggest();
+  if (currentTab !== 'stock') switchTab('stock');
+  if (!!s.archived !== stockArchiveView) switchStockView(!!s.archived);
+  render();
+  openStockModal(s.id);
+}
+function stockSearchKey(e) {
+  const box = document.getElementById('stockSearchSuggest');
+  if (e.key === 'Escape') { hideStockSearchSuggest(); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!box.classList.contains('open')) renderStockSearchSuggest();
+    if (!stockSearchRowsList.length) return;
+    stockSearchActive = e.key === 'ArrowDown'
+      ? (stockSearchActive + 1) % stockSearchRowsList.length
+      : (stockSearchActive <= 0 ? stockSearchRowsList.length - 1 : stockSearchActive - 1);
+    box.querySelectorAll('.stock-suggest-item').forEach((el, i) =>
+      el.classList.toggle('active', i === stockSearchActive));
+    return;
+  }
+  if (e.key === 'Enter' && stockSearchActive >= 0) {
+    e.preventDefault();
+    chooseStockSearch(stockSearchActive);
+  }
+}
+document.addEventListener('click', e => {
+  if (!document.getElementById('stockSearchWrap').contains(e.target)) hideStockSearchSuggest();
+});
+
+function renderStock() {
+  if (!isAdmin()) { switchTab('orders'); return; }
+  const rawQ = (document.getElementById('stockSearch').value || '').trim();
+  const q = rawQ.toLowerCase();
+  const list = visibleStockItems().filter(s => !q || stockSearchText(s).indexOf(q) >= 0);
+  stockSelected = new Set(Array.from(stockSelected).filter(id => list.some(s => s.id === id)));
+  document.getElementById('stockCountActive').textContent = stock.filter(s => !s.archived).length;
+  document.getElementById('stockCountArchive').textContent = stock.filter(s => !!s.archived).length;
+  document.getElementById('tableHead').innerHTML =
+    '<tr><th style="width:34px"><input type="checkbox" class="stock-check" id="stockCheckAll" ' +
+      'onchange="toggleAllStock(this.checked)" title="Выбрать все"></th>' +
+    '<th>Дата</th><th>Позиция</th><th>Серийный номер</th><th>Стоимость</th>' +
+    '<th>Поставщик</th><th>Связан с заказами</th><th>Гарантия</th><th>Чек</th><th></th></tr>';
+  const tbody = document.getElementById('tableBody');
+  updateStockActions();
+  if (!list.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">' +
+      (q ? 'Ничего не найдено по запросу «' + esc(rawQ) + '» — ни на складе, ни в архиве'
+         : stockArchiveView
+           ? 'Архив пуст. Отметьте позиции на складе и нажмите «В архив»'
+           : 'Склад пуст — нажмите «+ Добавить позицию»') + '</td></tr>';
+    return;
+  }
+  const sorted = list.slice().sort((a, b) =>
+    String(b.date || '').localeCompare(String(a.date || '')) || (b.id - a.id));
+  tbody.innerHTML = sorted.map(s => {
+    const rel = (s.related || []).map(id => orderById(id)).filter(Boolean);
+    const relHtml = rel.length
+      ? rel.map(o => '<a class="order-num" title="Открыть заказ" onclick="event.stopPropagation();openOrderCard(' + o.id + ')">№' + esc(o.number) + '</a>').join(', ')
+      : '—';
+    const files = s.files || [];
+    let checkHtml = s.checkText ? esc(s.checkText) : '';
+    if (files.length) checkHtml += (checkHtml ? '<br>' : '') + '📎 ' + files.length;
+    return '<tr style="cursor:pointer" onclick="openStockModal(' + s.id + ')">' +
+      '<td><input type="checkbox" class="stock-check" value="' + s.id + '" ' +
+        (stockSelected.has(s.id) ? 'checked' : '') +
+        ' onclick="event.stopPropagation();toggleStockCheck(' + s.id + ',this.checked)"></td>' +
+      '<td>' + esc(fmtDate(s.date)) + '</td>' +
+      '<td>' + esc(partName(s.position)) + '</td>' +
+      '<td>' + esc(s.serial || '—') + '</td>' +
+      '<td>' + esc(s.cost || '—') + '</td>' +
+      '<td>' + esc(s.supplier || '—') + '</td>' +
+      '<td>' + relHtml + '</td>' +
+      '<td>' + esc(s.warranty || '—') + '</td>' +
+      '<td>' + (checkHtml || '—') + '</td>' +
+      '<td><button class="btn-copy" title="Удалить позицию" onclick="event.stopPropagation();deleteStockItem(' + s.id + ')">🗑</button></td>' +
+      '</tr>';
+  }).join('');
+  const all = document.getElementById('stockCheckAll');
+  if (all) all.checked = list.length > 0 && list.every(s => stockSelected.has(s.id));
+}
+
+function updateStockActions() {
+  const n = stockSelected.size;
+  document.getElementById('stockSelectedCount').textContent = 'Выбрано: ' + n;
+  const arch = document.getElementById('btnStockArchive');
+  arch.textContent = stockArchiveView ? 'Вернуть из архива' : 'В архив';
+  arch.disabled = n === 0;
+  const dup = document.getElementById('btnStockDuplicate');
+  dup.style.display = stockArchiveView ? 'none' : 'inline-block';
+  dup.disabled = n === 0;
+  document.getElementById('btnStockDelete').disabled = n === 0;
+}
+function toggleStockCheck(id, on) {
+  if (on) stockSelected.add(id); else stockSelected.delete(id);
+  const list = visibleStockItems();
+  const all = document.getElementById('stockCheckAll');
+  if (all) all.checked = list.length > 0 && list.every(s => stockSelected.has(s.id));
+  updateStockActions();
+}
+function toggleAllStock(on) {
+  if (on) visibleStockItems().forEach(s => stockSelected.add(s.id));
+  else stockSelected.clear();
+  document.querySelectorAll('#tableBody .stock-check').forEach(c => { c.checked = on; });
+  updateStockActions();
+}
+function deleteSelectedStock() {
+  if (!isAdmin()) return;
+  const ids = Array.from(stockSelected);
+  if (!ids.length) { alert('Отметьте позиции галочками'); return; }
+  if (!confirm('Удалить выбранных позиций: ' + ids.length + '?')) return;
+  stock = stock.filter(x => ids.indexOf(x.id) < 0);
+  stockSelected.clear();
+  saveStockValue().then(() => render()).catch(e => alert('Ошибка: ' + e.message));
+}
+function moveSelectedStock(toArchive) {
+  if (!isAdmin()) return;
+  const ids = Array.from(stockSelected);
+  if (!ids.length) { alert('Отметьте позиции галочками'); return; }
+  const msg = toArchive
+    ? 'Перенести выбранных позиций в архив: ' + ids.length + '?'
+    : 'Вернуть выбранных позиций из архива на склад: ' + ids.length + '?';
+  if (!confirm(msg)) return;
+  stock = stock.map(x => ids.indexOf(x.id) >= 0 ? Object.assign({}, x, { archived: !!toArchive }) : x);
+  stockSelected.clear();
+  saveStockValue().then(() => render()).catch(e => alert('Ошибка: ' + e.message));
+}
+function duplicateSelectedStock() {
+  if (!isAdmin() || stockArchiveView) return;
+  const ids = Array.from(stockSelected);
+  if (!ids.length) { alert('Отметьте позицию галочкой'); return; }
+  if (ids.length > 1) { alert('Дублировать можно только одну позицию за раз'); return; }
+  const src = stock.find(x => x.id === ids[0]);
+  if (!src) return;
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = Math.max(Date.now(), ...stock.map(x => Number(x.id) || 0)) + 1;
+  if (copy.serial) {
+    copy.serial += ' (копия)';
+    let n = 2;
+    while (findSerialDuplicate(copy.serial, copy.id)) {
+      copy.serial = src.serial + ' (копия ' + n + ')';
+      n++;
+    }
+  }
+  // Файлы копии получают новый номер записи — имена не совпадут с оригиналом
+  if (copy.files) copy.files = copy.files.map(f => {
+    const n = String(f.name);
+    return Object.assign({}, f, {
+      name: n.replace(/^(\d{8})_\d+_(\d+_)/, '$1_' + copy.id + '_$2')
+    });
+  });
+  stock.push(copy);
+  stockSelected.clear();
+  saveStockValue()
+    .then(() => { render(); openStockModal(copy.id); })
+    .catch(e => alert('Ошибка: ' + e.message));
+}
+
+// ---- Подсказки по моделям из «Железо» (поиск посимвольно) ----
+function positionParts() {
+  return parts.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'ru'));
+}
+function positionLabel(p) {
+  return (p.category ? p.category + ': ' : '') + p.name;
+}
+function positionHighlight(text, q) {
+  if (!q) return esc(text);
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return esc(text);
+  return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) +
+    '</mark>' + esc(text.slice(i + q.length));
+}
+function renderPositionSuggest() {
+  const box = document.getElementById('sPositionSuggest');
+  const q = (document.getElementById('sPosition').value || '').trim().toLowerCase();
+  posSuggest = positionParts().filter(p => !q ||
+    String(p.name).toLowerCase().indexOf(q) >= 0 ||
+    String(p.category || '').toLowerCase().indexOf(q) >= 0
+  ).slice(0, 15);
+  posActive = -1;
+  box.innerHTML = posSuggest.length
+    ? posSuggest.map((p, i) =>
+        '<div class="stock-suggest-item" onmousedown="choosePosition(' + i + ')">' +
+        positionHighlight(positionLabel(p), q) + '</div>').join('')
+    : '<div class="stock-suggest-empty">В «Железо» нет такой модели — можно ввести название вручную.</div>';
+  box.classList.add('open');
+}
+function hidePositionSuggest(delay) {
+  const box = document.getElementById('sPositionSuggest');
+  if (delay) setTimeout(() => box.classList.remove('open'), delay);
+  else box.classList.remove('open');
+}
+function onPositionInput() {
+  const id = document.getElementById('sPositionId').value;
+  const p = parts.find(x => String(x.id) === String(id));
+  if (p && (document.getElementById('sPosition').value || '').trim() !== p.name) {
+    document.getElementById('sPositionId').value = '';
+  }
+  renderPositionSuggest();
+}
+function choosePosition(i) {
+  const p = posSuggest[i];
+  if (!p) return;
+  document.getElementById('sPosition').value = p.name;
+  document.getElementById('sPositionId').value = p.id;
+  hidePositionSuggest();
+}
+function onPositionKey(e) {
+  const box = document.getElementById('sPositionSuggest');
+  if (e.key === 'Escape') { hidePositionSuggest(); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!box.classList.contains('open')) renderPositionSuggest();
+    if (!posSuggest.length) return;
+    posActive = e.key === 'ArrowDown'
+      ? (posActive + 1) % posSuggest.length
+      : (posActive <= 0 ? posSuggest.length - 1 : posActive - 1);
+    box.querySelectorAll('.stock-suggest-item').forEach((el, i) =>
+      el.classList.toggle('active', i === posActive));
+    return;
+  }
+  if (e.key === 'Enter' && posActive >= 0) {
+    e.preventDefault();
+    choosePosition(posActive);
+  }
+}
+
+// ---- Гарантия: всё приводим к виду «До ДД.ММ.ГГГГ» ----
+function pad2(n) { return String(n).padStart(2, '0'); }
+function warrantyFromBase(baseDate, months) {
+  let y = new Date().getFullYear(), m = new Date().getMonth() + 1, d = new Date().getDate();
+  const parts = String(baseDate || '').split('-').map(Number);
+  if (parts.length === 3 && parts[0] > 1900 && parts[1] >= 1 && parts[1] <= 12 && parts[2] >= 1 && parts[2] <= 31) {
+    y = parts[0]; m = parts[1]; d = parts[2];
+  }
+  const dt = new Date(y, m - 1 + months, 1);
+  const last = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+  dt.setDate(Math.min(d, last));
+  return 'До ' + pad2(dt.getDate()) + '.' + pad2(dt.getMonth() + 1) + '.' + dt.getFullYear();
+}
+function normalizeWarranty(raw, baseDate) {
+  const s = String(raw || '').trim().replace(/\s+/g, ' ');
+  if (!s) return '';
+  const low = s.toLowerCase().replace(/ё/g, 'е');
+  // уже дата: «до 19.07.2028», «19.07.2028»
+  let m = low.match(/(?:до\s*)?(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+  if (m) {
+    let yr = m[3];
+    if (yr.length === 2) yr = '20' + yr;
+    return 'До ' + pad2(m[1]) + '.' + pad2(m[2]) + '.' + yr;
+  }
+  // года: «2 года», «1 год», «5 лет», «2 г.», «1,5 года»
+  m = low.match(/^(\d+(?:[.,]\d+)?)\s*(года|год|лет|г\.|г)$/);
+  if (m) return warrantyFromBase(baseDate, Math.round(parseFloat(m[1].replace(',', '.')) * 12));
+  // месяцы: «60 мес», «60 месяцев», «12 мес.», «6 месяцев»
+  m = low.match(/^(\d+(?:[.,]\d+)?)\s*(месяцев|месяца|месяц|мес\.|мес)$/);
+  if (m) return warrantyFromBase(baseDate, Math.round(parseFloat(m[1].replace(',', '.'))));
+  return s;
+}
+function warrantyBaseDate() {
+  const d = document.getElementById('sDate').value;
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : todayStr();
+}
+function previewWarranty() {
+  const raw = document.getElementById('sWarranty').value;
+  const res = normalizeWarranty(raw, warrantyBaseDate());
+  document.getElementById('sWarrantyHint').textContent =
+    (res && res !== raw.trim()) ? 'Будет сохранено: ' + res : '';
+}
+function applyWarranty() {
+  const inp = document.getElementById('sWarranty');
+  inp.value = normalizeWarranty(inp.value, warrantyBaseDate());
+  previewWarranty();
+}
+
+async function openStockModal(id) {
+  if (!isAdmin()) return;
+  setStockSaving(false);
+  stockEditId = id || null;
+  stockPendingId = id || Date.now();
+  const s = id ? stock.find(x => x.id === id) : null;
+  document.querySelectorAll('[data-stock-more]').forEach(d => { d.open = false; });
+  document.getElementById('stockModalTitle').textContent = s ? 'Редактировать позицию' : 'Новая позиция';
+  document.getElementById('sDateManual').checked = s ? !!s.dateManual : false;
+  document.getElementById('sDate').value = s ? (s.date || '') : todayStr();
+  document.getElementById('sDate').readOnly = !document.getElementById('sDateManual').checked;
+
+  const pid = s ? String(s.position || '') : '';
+  const existing = parts.find(x => String(x.id) === pid);
+  document.getElementById('sPosition').value =
+    existing ? existing.name : (pid && !/^\d+$/.test(pid) ? pid : '');
+  document.getElementById('sPositionId').value = existing ? existing.id : '';
+  hidePositionSuggest();
+
+  document.getElementById('sSerial').value = s ? (s.serial || '') : '';
+  document.getElementById('sCost').value = s ? (s.cost || '') : '';
+  document.getElementById('sSupplier').value = s ? (s.supplier || '') : '';
+  document.getElementById('sWarranty').value = s ? (s.warranty || '') : '';
+  document.getElementById('sCheckText').value = s ? (s.checkText || '') : '';
+
+  stockRelated = s ? (s.related || []).slice() : [];
+  stockFiles = s ? (s.files || []).map(f => Object.assign({}, f)) : [];
+  document.getElementById('sOrderSearch').value = '';
+  document.getElementById('stockFileInput').value = '';
+  renderStockRel();
+  renderStockFiles();
+  previewWarranty();
+  document.getElementById('stockOverlay').classList.add('open');
+  clearTimeout(stockFocusTimer);
+  if (!s) stockFocusTimer = setTimeout(() => {
+    document.getElementById('sPosition').focus();
+    renderPositionSuggest();
+  }, 60);
+}
+
+function closeStockModal() {
+  document.getElementById('stockOverlay').classList.remove('open');
+  hidePositionSuggest();
+}
+
+function renderStockRel() {
+  const q = (document.getElementById('sOrderSearch').value || '').trim().toLowerCase();
+  const all = orders.concat(archived);
+  const found = q ? all.filter(o =>
+    [o.number, o.name, o.login, o.phone].some(v => String(v || '').toLowerCase().indexOf(q) >= 0)
+  ).slice(0, 30) : [];
+  document.getElementById('sOrderResults').innerHTML = !q
+    ? '<div class="stock-rel-empty">Введите номер, имя или логин заказчика</div>'
+    : (found.length
+      ? found.map(o => '<label class="stock-rel-item"><input type="checkbox" ' +
+          (stockRelated.indexOf(o.id) >= 0 ? 'checked' : '') +
+          ' onchange="toggleStockRel(' + o.id + ',this.checked)"> <span>№' + esc(o.number) +
+          ' — ' + esc(o.name) + '</span></label>').join('')
+      : '<div class="stock-rel-empty">Ничего не найдено</div>');
+  document.getElementById('sOrderSelected').innerHTML = stockRelated.length
+    ? stockRelated.map(id => {
+        const o = orderById(id);
+        return '<span class="stock-chip">№' + esc(o ? o.number : id) +
+          ' <button type="button" title="Отвязать" onclick="toggleStockRel(' + id + ',false)">×</button></span>';
+      }).join('')
+    : '';
+}
+
+function toggleStockRel(id, on) {
+  if (on) { if (stockRelated.indexOf(id) < 0) stockRelated.push(id); }
+  else stockRelated = stockRelated.filter(x => x !== id);
+  renderStockRel();
+}
+
+function renderStockFiles() {
+  document.getElementById('sFiles').innerHTML = stockFiles.length
+    ? stockFiles.map((f, i) =>
+        '<div class="stock-file"><a href="data:' + esc(f.mime) + ';base64,' + f.data +
+        '" download="' + esc(f.name) + '"' +
+        (f.origName ? ' title="Было: ' + esc(f.origName) + '"' : '') +
+        '>' + esc(f.name) + '</a>' +
+        '<span class="stock-file-size">' + Math.round((f.size || 0) / 1024) + ' КБ</span>' +
+        '<button type="button" title="Удалить файл" onclick="removeStockFile(' + i + ')">×</button></div>'
+      ).join('')
+    : '<div class="stock-rel-empty">Файлы не прикреплены</div>';
+}
+
+function removeStockFile(i) {
+  stockFiles.splice(i, 1);
+  renderStockFiles();
+}
+
+// Имена файлов: ДАТА_НОМЕР_ЗАПИСИ_ПОРЯДОК_прежнее имя.
+// Так фото и чеки разных позиций никогда не совпадут.
+function stockFilePrefix() {
+  const d = document.getElementById('sDate').value;
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(d) ? d.replace(/-/g, '') : todayStr().replace(/-/g, '');
+  return day + '_' + (stockPendingId || stockEditId || Date.now());
+}
+function uniqueStockFileName(original) {
+  const prefix = stockFilePrefix();
+  const clean = String(original || 'file').trim().replace(/[\\/:*?"<>|]/g, '_') || 'file';
+  let n = 1;
+  const re = new RegExp('^' + prefix + '_(\\d+)_');
+  stockFiles.forEach(f => {
+    const m = String(f.name).match(re);
+    if (m) n = Math.max(n, Number(m[1]) + 1);
+  });
+  return prefix + '_' + String(n).padStart(2, '0') + '_' + clean;
+}
+
+async function addStockFiles(list) {
+  for (const file of Array.from(list || [])) {
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Файл «' + file.name + '» больше 2 МБ — пропущен. Уменьшите фото перед загрузкой.');
+      continue;
+    }
+    const data = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1] || '');
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+    stockFiles.push({
+      name: uniqueStockFileName(file.name),
+      origName: file.name,
+      mime: file.type || 'application/octet-stream',
+      size: file.size,
+      data: data
+    });
+  }
+  renderStockFiles();
+}
+
+// Серийный номер уникален для всех позиций — и на складе, и в архиве.
+// Пробелы и регистр не важны: S 123 и s123 считаются одним номером.
+function serialKey(v) {
+  return String(v || '').trim().replace(/\s+/g, '').toUpperCase();
+}
+function findSerialDuplicate(serial, editId) {
+  const key = serialKey(serial);
+  if (!key) return null;
+  return stock.find(s => s.id !== editId && serialKey(s.serial) === key) || null;
+}
+
+async function saveStockItem() {
+  if (!isAdmin() || stockSaving) return;
+  setStockSaving(true);
+  try {
+    const dateManual = document.getElementById('sDateManual').checked;
+    const date = dateManual ? document.getElementById('sDate').value : todayStr();
+    if (!date) { alert('Укажите дату'); return; }
+    const serial = document.getElementById('sSerial').value.trim();
+    const dup = findSerialDuplicate(serial, stockEditId || stockPendingId);
+    if (dup) {
+      alert('Такой серийный номер уже есть ' + (dup.archived ? 'в архиве' : 'на складе') +
+        ': ' + fmtDate(dup.date) + ', ' + partName(dup.position) +
+        '.\nВведите другой номер или отредактируйте ту позицию.');
+      clearTimeout(stockFocusTimer);
+      const inp = document.getElementById('sSerial');
+      inp.focus(); inp.select();
+      return;
+    }
+    const id = stockEditId || stockPendingId || Date.now();
+    const item = {
+      id: id,
+      date: date,
+      dateManual: dateManual,
+      position: document.getElementById('sPositionId').value ||
+                document.getElementById('sPosition').value.trim(),
+      serial: serial,
+      cost: document.getElementById('sCost').value.trim(),
+      supplier: document.getElementById('sSupplier').value.trim(),
+      related: stockRelated.slice(),
+      warranty: normalizeWarranty(document.getElementById('sWarranty').value.trim(), date),
+      checkText: document.getElementById('sCheckText').value.trim(),
+      files: stockFiles.slice(),
+      archived: stockEditId
+        ? !!(stock.find(x => x.id === stockEditId) || {}).archived
+        : stockArchiveView
+    };
+    // Повторное сохранение той же карточки обновляет ту же запись, а не создаёт новую
+    if (stock.some(x => x.id === id)) stock = stock.map(x => x.id === id ? item : x);
+    else stock.push(item);
+    await saveStockValue();
+    closeStockModal();
+    render();
+  } catch (e) {
+    alert('Ошибка сохранения: ' + e.message);
+  } finally {
+    setStockSaving(false);
+  }
+}
+
+function deleteStockItem(id) {
+  if (!isAdmin()) return;
+  if (!confirm('Удалить позицию со склада?')) return;
+  stock = stock.filter(x => x.id !== id);
+  saveStockValue().then(() => render()).catch(e => alert('Ошибка: ' + e.message));
+}
+
+// Галочка «Указать вручную» разрешает редактировать дату; без неё дата = сегодня
+document.getElementById('sDateManual').addEventListener('change', function () {
+  const d = document.getElementById('sDate');
+  d.readOnly = !this.checked;
+  if (!this.checked) d.value = todayStr();
+  previewWarranty();
+});
+// Если дату всё же поменяли — ставим галочку сами
+document.getElementById('sDate').addEventListener('change', () => {
+  document.getElementById('sDateManual').checked = true;
+  document.getElementById('sDate').readOnly = false;
+  previewWarranty();
+});
+
+// Если igor держит архив открытым, обновляем его раз в минуту —
+// заказы старше 10 дней должны исчезнуть даже без перезагрузки страницы.
+setInterval(() => {
+  if (currentTab === 'archive' && !isAdmin()) render();
+}, 60 * 1000);
+
 // ================= АВТОВХОД =================
 // если пользователь уже входил (сессия сохранена) — открываем приложение сразу
 (async () => {
   try {
-    await api('me');
-    await enterApp();
-  } catch (e) { /* не вошли — показываем окно входа */ }
+    const d = await api('me');
+    if (d && d.login) await enterApp();
+  } catch (e) { /* не вошли — показываем форму входа */ }
 })();
 </script>
 
