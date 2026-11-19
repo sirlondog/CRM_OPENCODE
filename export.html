@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CRM-STARCOMP — выгрузка данных</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  body{font-family:Arial,sans-serif;max-width:520px;margin:60px auto;padding:0 20px;color:#1f2330}
+  h1{font-size:22px} label{display:block;margin:14px 0 5px;font-size:14px}
+  input{width:100%;padding:11px;box-sizing:border-box;border:1px solid #ccd;border-radius:6px}
+  button{margin-top:18px;padding:12px 22px;background:#315efb;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:15px}
+  button:disabled{opacity:.5;cursor:wait}
+  #msg{margin-top:16px;white-space:pre-wrap;line-height:1.5}
+  .ok{color:#187b3a}.err{color:#c62828}
+</style>
+</head>
+<body>
+<h1>Выгрузка данных CRM-STARCOMP</h1>
+<p>Скачает все заказы, детали и настройки (включая склад) в один файл JSON.</p>
+<label>Логин (email)</label>
+<input id="email" value="admin@star-comp.ru">
+<label>Пароль</label>
+<input id="pass" type="password">
+<button id="go">Скачать данные</button>
+<div id="msg"></div>
+<script>
+const URL_ = 'https://ebpusmjozyyvdyhrwafk.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVicHVzbWpvenl5dmR5aHJ3YWZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ2NjYzNjIsImV4cCI6MjExMDI0MjM2Mn0.sr4-Fw_7heJtIcF5ahM1tEIONDaUyOTdvmwbTKLGalU';
+const msg = document.getElementById('msg');
+function say(t, cls){ msg.textContent = t; msg.className = cls || ''; }
+document.getElementById('go').onclick = async () => {
+  const btn = document.getElementById('go');
+  btn.disabled = true; say('Соединяюсь с базой…');
+  try {
+    const sb = supabase.createClient(URL_, KEY_);
+    const { error: le } = await sb.auth.signInWithPassword({
+      email: document.getElementById('email').value.trim(),
+      password: document.getElementById('pass').value
+    });
+    if (le) throw new Error('Вход: ' + le.message);
+    say('Загружаю заказы…');
+    const [orders, parts, settings] = await Promise.all([
+      sb.from('orders').select('*'),
+      sb.from('parts').select('*'),
+      sb.from('settings').select('*')
+    ]);
+    for (const r of [orders, parts, settings]) if (r.error) throw new Error(r.error.message);
+    const dump = {
+      exported_at: new Date().toISOString(),
+      orders: orders.data || [],
+      parts: parts.data || [],
+      settings: (settings.data || []).reduce((a, x) => { a[x.key] = x.value; return a; }, {})
+    };
+    const blob = new Blob([JSON.stringify(dump, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'crm-backup-' + new Date().toISOString().slice(0,10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    say('Готово! Файл сохранён: ' + a.download +
+        '\nЗаказов: ' + dump.orders.length + ', деталей: ' + dump.parts.length +
+        '\nКлючей настроек: ' + Object.keys(dump.settings).length, 'ok');
+  } catch (e) {
+    say('Ошибка: ' + e.message, 'err');
+  } finally { btn.disabled = false; }
+};
+</script>
+</body>
+</html>
