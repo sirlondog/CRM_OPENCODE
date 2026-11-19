@@ -341,6 +341,19 @@
   .manual-check:hover { color: var(--text); }
   .modal .row2 { display: flex; gap: 12px; }
   .modal .row2 > div { flex: 1; }
+  .form-section { border: 1px solid var(--border); border-radius: 10px; margin-top: 10px; overflow: hidden; }
+  .form-section:first-of-type { margin-top: 0; }
+  .section-toggle {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; background: var(--surface-2); border: none; color: var(--text);
+    font-size: 13px; font-weight: 500; font-family: inherit; cursor: pointer; text-align: left;
+  }
+  .section-toggle:hover { background: var(--surface-3); }
+  .section-toggle::after { content: '▾'; color: var(--text-muted); font-size: 12px; transition: transform .15s; }
+  .form-section.collapsed .section-toggle::after { transform: rotate(-90deg); }
+  .section-body { padding: 0 12px 12px; }
+  .section-body > label:first-child { margin-top: 8px; }
+  .form-section.collapsed .section-body { display: none; }
   .modal-buttons { display: flex; gap: 10px; margin-top: 22px; }
   .modal-buttons button {
     flex: 1; padding: 10px; border-radius: 8px; font-size: 14px; cursor: pointer;
@@ -462,40 +475,70 @@
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h2 id="modalTitle">Новый заказ</h2>
-    <label for="fNumber">Номер заказа</label>
-    <div class="number-row">
-      <input id="fNumber" type="text" name="orderNumber" autocomplete="off" placeholder="Например: 001">
-      <label class="manual-check" title="Отметьте, чтобы ввести номер вручную (например, при переносе старого заказа)">
-        <input type="checkbox" id="fNumberManual" onchange="toggleManualNumber()"> Вручную
-      </label>
+
+    <div class="form-section" data-section="main">
+      <button type="button" class="section-toggle" onclick="toggleOrderSection(this)">Данные заказа</button>
+      <div class="section-body">
+        <label for="fNumber">Номер заказа</label>
+        <div class="number-row">
+          <input id="fNumber" type="text" name="orderNumber" autocomplete="off" placeholder="Например: 001">
+          <label class="manual-check" title="Отметьте, чтобы ввести номер вручную (например, при переносе старого заказа)">
+            <input type="checkbox" id="fNumberManual" onchange="toggleManualNumber()"> Вручную
+          </label>
+        </div>
+        <label for="fDate">Дата</label>
+        <input id="fDate" type="date" name="orderDate" autocomplete="off">
+        <label for="fName">Имя заказчика *</label>
+        <input id="fName" type="text" name="customerName" autocomplete="name" placeholder="Иван Иванов">
+        <label for="fPhone">Номер телефона</label>
+        <input id="fPhone" type="tel" name="customerPhone" autocomplete="tel" placeholder="+7 (___) ___-__-__">
+        <label for="fLogin">Логин</label>
+        <input id="fLogin" type="text" name="customerLogin" autocomplete="off" placeholder="логин заказчика">
+      </div>
     </div>
-    <label for="fDate">Дата</label>
-    <input id="fDate" type="date" name="orderDate" autocomplete="off">
-    <label for="fName">Имя заказчика *</label>
-    <input id="fName" type="text" name="customerName" autocomplete="name" placeholder="Иван Иванов">
-    <label for="fPhone">Номер телефона</label>
-    <input id="fPhone" type="tel" name="customerPhone" autocomplete="tel" placeholder="+7 (___) ___-__-__">
-    <label for="fLogin">Логин</label>
-    <input id="fLogin" type="text" name="customerLogin" autocomplete="off" placeholder="логин заказчика">
-    <label>Конфигурации</label>
-    <div id="configBlocks"></div>
-    <button type="button" class="btn-config-add" onclick="addConfigBlock()">+ Добавить ещё конфигурацию</button>
-    <label for="fPayment">Способ оплаты</label>
-    <input id="fPayment" type="text" name="paymentMethod" autocomplete="off" placeholder="наличные, перевод, рассрочка...">
-    <label for="fShip">Способ получения</label>
-    <input id="fShip" type="text" name="deliveryMethod" autocomplete="off" placeholder="самовывоз, доставка курьером...">
-    <label for="fAddress">Адрес доставки</label>
-    <input id="fAddress" type="text" name="deliveryAddress" autocomplete="off" placeholder="адрес, если нужна доставка">
-    <label for="fComment">Комментарий</label>
-    <textarea id="fComment" name="comment" autocomplete="off" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
-    <label for="fSource">Источник</label>
-    <input id="fSource" type="text" name="orderSource" autocomplete="off" placeholder="откуда пришёл клиент: Авито, ВК, знакомые...">
-    <label for="fStatus">Статус заказа</label>
-    <select id="fStatus">
-      <option value="Согласование">Согласование</option>
-      <option value="В работе">В работе</option>
-      <option value="Закрыт">Закрыт (в архив)</option>
-    </select>
+
+    <div class="form-section" data-section="config">
+      <button type="button" class="section-toggle" onclick="toggleOrderSection(this)">Конфигурации</button>
+      <div class="section-body">
+        <div id="configBlocks"></div>
+        <button type="button" class="btn-config-add" onclick="addConfigBlock()">+ Добавить ещё конфигурацию</button>
+      </div>
+    </div>
+
+    <div class="form-section" data-section="delivery">
+      <button type="button" class="section-toggle" onclick="toggleOrderSection(this)">Оплата и доставка</button>
+      <div class="section-body">
+        <label for="fPayment">Способ оплаты</label>
+        <input id="fPayment" type="text" name="paymentMethod" autocomplete="off" placeholder="наличные, перевод, рассрочка...">
+        <label for="fShip">Способ получения</label>
+        <input id="fShip" type="text" name="deliveryMethod" autocomplete="off" placeholder="самовывоз, доставка курьером...">
+        <label for="fAddress">Адрес доставки</label>
+        <input id="fAddress" type="text" name="deliveryAddress" autocomplete="off" placeholder="адрес, если нужна доставка">
+      </div>
+    </div>
+
+    <div class="form-section" data-section="comment">
+      <button type="button" class="section-toggle" onclick="toggleOrderSection(this)">Комментарий</button>
+      <div class="section-body">
+        <label for="fComment">Комментарий</label>
+        <textarea id="fComment" name="comment" autocomplete="off" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
+      </div>
+    </div>
+
+    <div class="form-section" data-section="extra">
+      <button type="button" class="section-toggle" onclick="toggleOrderSection(this)">Источник и статус</button>
+      <div class="section-body">
+        <label for="fSource">Источник</label>
+        <input id="fSource" type="text" name="orderSource" autocomplete="off" placeholder="откуда пришёл клиент: Авито, ВК, знакомые...">
+        <label for="fStatus">Статус заказа</label>
+        <select id="fStatus">
+          <option value="Согласование">Согласование</option>
+          <option value="В работе">В работе</option>
+          <option value="Закрыт">Закрыт (в архив)</option>
+        </select>
+      </div>
+    </div>
+
     <div class="modal-buttons">
       <button class="btn-cancel" onclick="closeModal()">Закрыть</button>
       <button class="btn-save" onclick="saveOrder()">Сохранить</button>
@@ -631,12 +674,67 @@ async function doLogout() {
   await sb.auth.signOut();
   location.reload();
 }
+let currentUserLabelStr = '';
+let originalOrderComment = '';
+
+function userLabelFromSession(session) {
+  const u = session && session.user;
+  if (!u) return '';
+  const email = (u.email || '').toLowerCase();
+  if (email === 'igor@star-comp.ru') return 'igor';
+  if (email === 'admin@star-comp.ru') return 'admin';
+  return u.email || (u.user_metadata && (u.user_metadata.login || u.user_metadata.name)) || 'user';
+}
+
+async function refreshCurrentUserLabel() {
+  try {
+    const { data } = await sb.auth.getSession();
+    currentUserLabelStr = userLabelFromSession(data && data.session);
+  } catch (e) { currentUserLabelStr = currentUserLabelStr || ''; }
+  return currentUserLabelStr;
+}
+
+function commentStamp() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const ts = pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  return '[' + ts + ', ' + (currentUserLabelStr || 'user') + ']';
+}
+
+function toggleOrderSection(btn) {
+  const sec = btn && btn.closest ? btn.closest('.form-section') : null;
+  if (sec) sec.classList.toggle('collapsed');
+}
+
+function setOrderSectionsCollapsed(collapsed) {
+  document.querySelectorAll('#modalOverlay .form-section').forEach(sec => {
+    sec.classList.toggle('collapsed', !!collapsed);
+  });
+}
+
+function applyCommentStampOnSave() {
+  const current = document.getElementById('fComment').value.replace(/\s+$/, '');
+  const orig = (originalOrderComment || '').replace(/\s+$/, '');
+  if (!current.trim()) return '';
+  if (current === orig) return orig;
+  const stamp = commentStamp();
+  if (!orig) return stamp + '\n' + current.trim();
+  if (current.indexOf(orig) === 0) {
+    const added = current.slice(orig.length).replace(/^\n+/, '').trim();
+    if (!added) return orig;
+    return orig + '\n\n' + stamp + '\n' + added;
+  }
+  // текст изменён не в конце истории — дописываем новую пометку с текущим текстом
+  return orig + '\n\n' + stamp + '\n' + current.trim();
+}
+
 async function enterApp() {
   // полностью удаляем форму входа со страницы — иначе браузер (Chrome)
   // считает поля формы заказа частью формы логина и предлагает автозаполнение «Логин»
   const login = document.getElementById('loginScreen');
   if (login) login.remove();
   document.getElementById('app').style.display = 'block';
+  await refreshCurrentUserLabel();
   await migrateLocalData();
   await loadAll();
   render();
@@ -1233,6 +1331,7 @@ function openOrderCard(id) {
   const o = orders.find(x => x.id === id) || archived.find(x => x.id === id);
   if (!o) return;
   editingId = id;
+  originalOrderComment = o.comment || '';
   document.getElementById('modalTitle').textContent = 'Карточка заказа №' + o.number;
   document.getElementById('fNumber').value = o.number;
   document.getElementById('fNumber').readOnly = true;
@@ -1248,6 +1347,7 @@ function openOrderCard(id) {
   document.getElementById('fComment').value = o.comment;
   renderConfigBlocks(normalizeConfigBlocks(o.config));
   document.getElementById('fStatus').value = o.status;
+  setOrderSectionsCollapsed(false);
   document.getElementById('modalOverlay').classList.add('open');
   document.getElementById('fName').focus();
 }
@@ -1345,6 +1445,7 @@ function toggleManualNumber() {
 
 function openAddModal() {
   editingId = null;
+  originalOrderComment = '';
   document.getElementById('modalTitle').textContent = 'Новый заказ';
   // Номер подставляется автоматически: предыдущий в базе + 1
   const numInput = document.getElementById('fNumber');
@@ -1363,8 +1464,8 @@ function openAddModal() {
   document.getElementById('fComment').value = '';
   renderConfigBlocks(null);
   document.getElementById('fStatus').value = 'Согласование';
+  setOrderSectionsCollapsed(true);
   document.getElementById('modalOverlay').classList.add('open');
-  document.getElementById('fName').focus();
 }
 
 function closeModal() {
@@ -1389,6 +1490,9 @@ async function saveOrder() {
     return;
   }
 
+  await refreshCurrentUserLabel();
+  const commentFinal = applyCommentStampOnSave();
+
   const row = {
     number: number,
     date: document.getElementById('fDate').value,
@@ -1399,7 +1503,7 @@ async function saveOrder() {
     payment: document.getElementById('fPayment').value.trim(),
     ship: document.getElementById('fShip').value.trim(),
     address: document.getElementById('fAddress').value.trim(),
-    comment: document.getElementById('fComment').value.trim(),
+    comment: commentFinal,
     config: collectConfigBlocks(),
     status: document.getElementById('fStatus').value
   };
@@ -1453,6 +1557,7 @@ async function saveOrder() {
     sb.from('settings').upsert({ key: 'nextnum', value: nextNum }).then(() => {});
   }
 
+  originalOrderComment = commentFinal || '';
   editingId = null;
   closeModal();
   if (currentTab !== 'orders') switchTab('orders'); else render();
