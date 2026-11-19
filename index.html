@@ -316,14 +316,14 @@
   <div class="login-box">
     <h1>CRM — Сборка ПК</h1>
     <div class="sub">Вход в систему</div>
-    <label for="loginEmail">Email</label>
-    <input id="loginEmail" type="email" placeholder="you@example.com" autocomplete="email">
+    <label for="loginEmail">Логин</label>
+    <input id="loginEmail" type="text" placeholder="admin (или admin@star-comp.ru)" autocomplete="username">
     <label for="loginPass">Пароль</label>
     <input id="loginPass" type="password" placeholder="••••••" autocomplete="current-password">
     <div class="login-error" id="loginError"></div>
     <button onclick="doLogin()">Войти</button>
     <button class="btn-signup" onclick="doSignup()">Создать аккаунт (регистрация)</button>
-    <div class="login-hint">Данные хранятся в облаке — доступны с любого компьютера</div>
+    <div class="login-hint">Вход: admin / admin1 &nbsp;•&nbsp; Данные в облаке — доступны с любого компьютера</div>
   </div>
 </div>
 
@@ -501,17 +501,24 @@ async function migrateLocalData() {
 }
 
 // ================= ВХОД =================
+// Единая учётка: логин «admin» (или admin@star-comp.ru), пароль admin1
+const ADMIN_EMAIL = 'admin@star-comp.ru';
+
+function normalizeEmail(v) {
+  return (v.toLowerCase() === 'admin') ? ADMIN_EMAIL : v;
+}
+
 async function doLogin() {
-  const email = document.getElementById('loginEmail').value.trim();
+  const email = normalizeEmail(document.getElementById('loginEmail').value.trim());
   const pass = document.getElementById('loginPass').value;
   document.getElementById('loginError').textContent = '';
   if (!email || !pass) {
-    document.getElementById('loginError').textContent = 'Введите email и пароль';
+    document.getElementById('loginError').textContent = 'Введите логин и пароль';
     return;
   }
   const { error } = await sb.auth.signInWithPassword({ email, password: pass });
   if (error) {
-    document.getElementById('loginError').textContent = 'Неверный email или пароль';
+    document.getElementById('loginError').textContent = 'Неверный логин или пароль (admin / admin1)';
     return;
   }
   await enterApp();
