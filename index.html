@@ -634,7 +634,7 @@ function copyOrder(id, btn) {
   if (o.phone) lines.push('Телефон: ' + o.phone);
   if (o.login) lines.push('Логин: ' + o.login);
 
-  const cfg = o.config || [];
+  const cfg = (o.config || []).filter(c => !c.skipped && c.name !== 'Не нужно');
   if (cfg.length) {
     lines.push('');
     lines.push('Конфигурация:');
@@ -843,6 +843,7 @@ const CONFIG_LINES = [
   { label: 'Накопитель',         cats: ['Накопитель'] },
   { label: 'Накопитель 2',       cats: ['Накопитель'] },
   { label: 'Охлаждение',         cats: ['Воздушное охлаждение', 'Жидкостное охлаждение'] },
+  { label: 'Термопаста',         thermo: [['MX-3', 30000], ['MX-4', 40000], ['MX-5', 50000], ['MX-6', 60000], ['MX-7', 70000], ['MX-8', 80000]] },
   { label: 'Блок питания',       cats: ['Блок питания'] },
   { label: 'Корпус',             cats: ['Корпус'] },
   { label: 'Вентиляторы',        cats: ['Вентилятор'] }
@@ -857,11 +858,12 @@ function buildConfigTable(savedList) {
   CONFIG_LINES.forEach(line => {
     // сначала ищем сохранённую позицию именно этой строки, затем — по категориям старых заказов
     let idx = pending.findIndex(it => it.line === line.label);
-    if (idx === -1) idx = pending.findIndex(it => line.cats.includes(it.category));
+    if (idx === -1) idx = pending.findIndex(it => line.cats && line.cats.includes(it.category));
     let saved = null;
     if (idx !== -1) { saved = pending[idx]; pending.splice(idx, 1); }
 
     const tr = document.createElement('tr');
+    if (line.thermo) tr.dataset.thermo = '1';
 
     const tdLabel = document.createElement('td');
     tdLabel.className = 'config-line';
@@ -872,35 +874,54 @@ function buildConfigTable(savedList) {
     sel.className = 'config-part';
 
     const tdCost = document.createElement('td');
-    const cost = document.createElement('input');
-    cost.type = 'number';
-    cost.className = 'config-cost';
-    cost.min = '0';
-    cost.step = '1';
-    cost.placeholder = '—';
+    let cost = null;
 
-    function fillParts() {
-      const list = parts.filter(p => line.cats.includes(p.category));
+    if (line.thermo) {
+      // Термопаста: фиксированные позиции с фиксированной ценой
       let html = '<option value="">— не выбрано —</option>';
-      list.forEach(p => {
-        html += '<option value="' + p.id + '">' + esc(p.name) + '</option>';
+      html += '<option value="none">Не нужно</option>';
+      line.thermo.forEach(([n, p]) => {
+        html += '<option value="' + esc(n) + '" data-price="' + p + '">' + esc(n) + ' — ' + p.toLocaleString('ru-RU') + ' ₽</option>';
       });
-      // деталь удалена из каталога после сохранения заказа — показываем снимок
-      if (saved && saved.partId && !list.some(p => String(p.id) === String(saved.partId))) {
-        html += '<option value="' + esc(saved.partId) + '">' + esc(saved.name) + ' (нет в каталоге)</option>';
-      }
       sel.innerHTML = html;
-      if (saved && saved.partId) sel.value = String(saved.partId);
+      if (saved && saved.skipped) sel.value = 'none';
+      else if (saved && saved.name) sel.value = saved.name;
+      tdCost.textContent = '—';
+      tdCost.style.textAlign = 'center';
+      tdCost.style.color = 'var(--text-muted)';
+    } else {
+      const cost = document.createElement('input');
+      cost.type = 'number';
+      cost.className = 'config-cost';
+      cost.min = '0';
+      cost.step = '1';
+      cost.placeholder = '—';
+
+      function fillParts() {
+        const list = parts.filter(p => line.cats.includes(p.category));
+        let html = '<option value="">— не выбрано —</option>';
+        html += '<option value="none">Не нужно</option>';
+        list.forEach(p => {
+          html += '<option value="' + p.id + '">' + esc(p.name) + '</option>';
+        });
+        // деталь удалена из каталога после сохранения заказа — показываем снимок
+        if (saved && saved.partId && saved.partId !== 'none' && !list.some(p => String(p.id) === String(saved.partId))) {
+          html += '<option value="' + esc(saved.partId) + '">' + esc(saved.name) + ' (нет в каталоге)</option>';
+        }
+        sel.innerHTML = html;
+        if (saved && saved.skipped) sel.value = 'none';
+        else if (saved && saved.partId) sel.value = String(saved.partId);
+      }
+
+      if (saved && saved.price) cost.value = saved.price;
+      fillParts();
+      cost.oninput = updateConfigSum;
+      tdCost.appendChild(cost);
     }
 
-    if (saved && saved.price) cost.value = saved.price;
-    fillParts();
-
     sel.onchange = updateConfigSum;
-    cost.oninput = updateConfigSum;
 
     tdSel.appendChild(sel);
-    tdCost.appendChild(cost);
     tr.appendChild(tdLabel);
     tr.appendChild(tdSel);
     tr.appendChild(tdCost);
@@ -918,13 +939,20 @@ function fmtMoney(n) {
 }
 
 function updateConfigSum() {
-  let sum = 0, any = false;
+  let sum = 0;
+  let allFilled = true;
   document.querySelectorAll('#configTableBody tr').forEach(tr => {
-    const c = rowCost(tr);
-    if (c > 0) { sum += c; any = true; }
+    const sel = tr.querySelector('.config-part');
+    if (!sel.value) { allFilled = false; return; }
+    if (sel.value === 'none') return; // «Не нужно» — на сумму не влияет
+    if (tr.dataset.thermo) {
+      sum += Number(sel.selectedOptions[0].dataset.price || 0);
+      return;
+    }
+    sum += rowCost(tr);
   });
   document.getElementById('configSum').textContent =
-    any ? 'Сумма конфигурации: ' + fmtMoney(sum) : '';
+    allFilled ? 'Сумма конфигурации: ' + fmtMoney(sum) : '';
 }
 
 function collectConfig() {
@@ -932,16 +960,31 @@ function collectConfig() {
   document.querySelectorAll('#configTableBody tr').forEach((tr, i) => {
     const line = CONFIG_LINES[i];
     const sel = tr.querySelector('.config-part');
-    const cost = rowCost(tr);
-    if (!sel.value && !cost) return;
+    const val = sel.value;
+    if (!val) return;
+
+    if (line.thermo) {
+      if (val === 'none') {
+        out.push({ line: line.label, category: line.label, name: 'Не нужно', price: 0, skipped: true });
+      } else {
+        const opt = sel.selectedOptions[0];
+        out.push({ line: line.label, category: line.label, name: val, price: Number(opt.dataset.price || 0), qty: 1 });
+      }
+      return;
+    }
+
+    if (val === 'none') {
+      out.push({ line: line.label, category: line.label, name: 'Не нужно', price: 0, skipped: true });
+      return;
+    }
     const opt = sel.selectedOptions[0];
-    const p = parts.find(x => String(x.id) === String(sel.value));
+    const p = parts.find(x => String(x.id) === String(val));
     out.push({
       line: line.label,
       category: line.label,
-      partId: sel.value || '',
-      name: sel.value ? (p ? p.name : opt.textContent.replace(' (нет в каталоге)', '')) : '',
-      price: cost,
+      partId: val,
+      name: p ? p.name : opt.textContent.replace(' (нет в каталоге)', ''),
+      price: rowCost(tr),
       qty: 1
     });
   });
