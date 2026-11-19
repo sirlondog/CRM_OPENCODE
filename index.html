@@ -362,7 +362,7 @@
     <div class="login-error" id="loginError"></div>
     <button onclick="doLogin()">Войти</button>
     <button class="btn-signup" onclick="doSignup()">Создать аккаунт (регистрация)</button>
-    <div class="login-hint">Вход: admin / admin1 &nbsp;•&nbsp; Данные в облаке — доступны с любого компьютера</div>
+    <div class="login-hint">Вход: igor / 00065356 &nbsp;•&nbsp; admin / admin1 &nbsp;•&nbsp; Данные в облаке</div>
   </div>
 </div>
 
@@ -553,11 +553,15 @@ async function migrateLocalData() {
 }
 
 // ================= ВХОД =================
-// Единая учётка: логин «admin» (или admin@star-comp.ru), пароль admin1
-const ADMIN_EMAIL = 'admin@star-comp.ru';
+// Логины-алиасы: можно входить коротким именем без email
+const LOGIN_ALIASES = {
+  'igor': 'igor@star-comp.ru',
+  'admin': 'admin@star-comp.ru'
+};
 
 function normalizeEmail(v) {
-  return (v.toLowerCase() === 'admin') ? ADMIN_EMAIL : v;
+  const key = v.toLowerCase();
+  return LOGIN_ALIASES[key] || v;
 }
 
 async function doLogin() {
@@ -634,13 +638,14 @@ const ORDERS_HEAD = '<tr>' +
   '<th>№ заказа</th><th>Заказчик</th><th>Стоимость</th>' +
   '<th>Комментарий</th><th>Статус</th></tr>';
 
-// стоимость на главной = сумма ВЫБРАННОЙ конфигурации (галочка в карточке)
+// стоимость на главной = сумма ВСЕХ отмеченных конфигураций (галочки в карточке);
+// если отмечено несколько — складываются (например, заказ на 2 компьютера)
 function configTotal(o) {
   const blocks = normalizeConfigBlocks(o.config);
   if (!blocks) return 0;
-  const sel = blocks.find(b => b.selected);
-  if (!sel) return 0;
-  return itemsTotal(sel.items);
+  const sel = blocks.filter(b => b.selected);
+  if (!sel.length) return 0;
+  return sel.reduce((s, b) => s + itemsTotal(b.items), 0);
 }
 
 function render() {
@@ -696,9 +701,12 @@ function copyOrder(id, btn) {
   if (o.login) lines.push('Логин: ' + o.login);
 
   const blocks = normalizeConfigBlocks(o.config);
-  const cfg = blocks
-    ? (((blocks.find(b => b.selected) || blocks[0]).items) || []).filter(c => !c.skipped && c.name !== 'Не нужно')
+  // в сообщение идут все отмеченные конфигурации (если ни одна — первая)
+  const picked = blocks
+    ? (blocks.filter(b => b.selected).length ? blocks.filter(b => b.selected) : [blocks[0]])
     : [];
+  const cfg = picked.flatMap(b => (b.items || []))
+    .filter(c => !c.skipped && c.name !== 'Не нужно');
   if (cfg.length) {
     lines.push('');
     lines.push('Конфигурация:');
@@ -1045,20 +1053,10 @@ function buildConfigBlock(block, idx) {
   const cb = document.createElement('input');
   cb.type = 'checkbox';
   cb.checked = !!block.selected;
-  cb.title = 'Показывать стоимость этой конфигурации на главной странице';
+  cb.title = 'Включить стоимость этой конфигурации в сумму на главной странице (можно отметить несколько — например, заказ на 2 компьютера)';
   cb.onchange = () => {
-    if (cb.checked) {
-      // выбранная конфигурация одна — снимаем галочки с остальных
-      document.querySelectorAll('#configBlocks .config-block').forEach(b => {
-        if (b === div) return;
-        b.classList.remove('selected');
-        const c = b.querySelector('.config-block-title input');
-        if (c) c.checked = false;
-      });
-      div.classList.add('selected');
-    } else {
-      div.classList.remove('selected');
-    }
+    if (cb.checked) div.classList.add('selected');
+    else div.classList.remove('selected');
   };
   title.appendChild(cb);
   const tspan = document.createElement('span');
