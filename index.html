@@ -881,7 +881,7 @@ function buildConfigTable(savedList) {
       let html = '<option value="">— не выбрано —</option>';
       html += '<option value="none">Не нужно</option>';
       line.thermo.forEach(([n, p]) => {
-        html += '<option value="' + esc(n) + '" data-price="' + p + '">' + esc(n) + ' — ' + p.toLocaleString('ru-RU') + ' ₽</option>';
+        html += '<option value="' + esc(n) + '" data-price="' + p + '">' + esc(n) + '</option>';
       });
       sel.innerHTML = html;
       if (saved && saved.skipped) sel.value = 'none';
