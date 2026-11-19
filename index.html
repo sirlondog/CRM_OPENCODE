@@ -495,7 +495,7 @@
     <label for="pLink">Ссылка на магазин</label>
     <input id="pLink" type="url" autocomplete="off" placeholder="https://...">
     <div class="modal-buttons">
-      <button class="btn-cancel" onclick="closePartModal()">Отмена</button>
+      <button class="btn-cancel" onclick="closePartModal()">Закрыть</button>
       <button class="btn-save" onclick="savePart()">Сохранить</button>
     </div>
   </div>
@@ -548,7 +548,7 @@
     <div class="stock-files" id="sFiles"></div>
 
     <div class="modal-buttons">
-      <button class="btn-cancel" onclick="closeStockModal()">Отмена</button>
+      <button class="btn-cancel" onclick="closeStockModal()">Закрыть</button>
       <button class="btn-save" onclick="saveStockItem()">Сохранить</button>
     </div>
   </div>
@@ -1117,10 +1117,8 @@ async function deletePart(id) {
   render();
 }
 
-// закрытие модалки детали по клику на фон
-document.getElementById('partOverlay').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closePartModal();
-});
+// Окна НЕ закрываются по клику на фон — только кнопками внизу окна.
+// Это защищает от случайного закрытия и потери введённых данных.
 
 // ================= КОНФИГУРАЦИЯ В ЗАКАЗЕ (СТАТИЧНАЯ ТАБЛИЦА) =================
 // Первый столбец — фиксированные строки, второй — деталь из базы «Железо»,
