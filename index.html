@@ -291,6 +291,17 @@
     box-shadow: 0 0 0 3px rgba(62,207,142,.12);
   }
   .modal textarea { resize: vertical; min-height: 140px; }
+  .number-row { display: flex; gap: 12px; align-items: center; }
+  .number-row #fNumber { flex: 1; min-width: 0; }
+  .manual-check {
+    display: flex; align-items: center; gap: 6px; white-space: nowrap;
+    font-size: 13px; color: var(--text-muted); cursor: pointer; user-select: none;
+  }
+  .manual-check input[type="checkbox"] {
+    width: auto !important; margin: 0; accent-color: var(--green);
+    cursor: pointer;
+  }
+  .manual-check:hover { color: var(--text); }
   .modal .row2 { display: flex; gap: 12px; }
   .modal .row2 > div { flex: 1; }
   .modal-buttons { display: flex; gap: 10px; margin-top: 22px; }
@@ -391,7 +402,12 @@
   <div class="modal">
     <h2 id="modalTitle">Новый заказ</h2>
     <label for="fNumber">Номер заказа</label>
-    <input id="fNumber" type="text" name="orderNumber" autocomplete="off" placeholder="Например: 001">
+    <div class="number-row">
+      <input id="fNumber" type="text" name="orderNumber" autocomplete="off" placeholder="Например: 001">
+      <label class="manual-check" title="Отметьте, чтобы ввести номер вручную (например, при переносе старого заказа)">
+        <input type="checkbox" id="fNumberManual" onchange="toggleManualNumber()"> Вручную
+      </label>
+    </div>
     <label for="fDate">Дата</label>
     <input id="fDate" type="date" name="orderDate" autocomplete="off">
     <label for="fName">Имя заказчика *</label>
@@ -1011,6 +1027,8 @@ function openOrderCard(id) {
   editingId = id;
   document.getElementById('modalTitle').textContent = 'Карточка заказа №' + o.number;
   document.getElementById('fNumber').value = o.number;
+  document.getElementById('fNumber').readOnly = true;
+  document.getElementById('fNumberManual').checked = false;
   document.getElementById('fDate').value = o.date;
   document.getElementById('fName').value = o.name;
   document.getElementById('fPhone').value = o.phone;
@@ -1097,11 +1115,31 @@ document.addEventListener('click', e => {
 // (клик по бейджу статуса в таблице), см. applyStatus()
 
 // ================= МОДАЛКА =================
+// следующий свободный номер: максимум по всем заказам в базе + 1
+function nextFreeNumber() {
+  let max = nextNum - 1;
+  orders.concat(archived).forEach(o => {
+    const n = parseInt(o.number, 10);
+    if (!isNaN(n) && n > max) max = n;
+  });
+  return String(max + 1).padStart(3, '0');
+}
+
+function toggleManualNumber() {
+  const manual = document.getElementById('fNumberManual').checked;
+  const input = document.getElementById('fNumber');
+  input.readOnly = !manual;
+  if (!manual) input.value = nextFreeNumber(); // сняли галочку — вернули авто-номер
+}
+
 function openAddModal() {
   editingId = null;
   document.getElementById('modalTitle').textContent = 'Новый заказ';
-  // Номер подставляется автоматически
-  document.getElementById('fNumber').value = String(nextNum).padStart(3, '0');
+  // Номер подставляется автоматически: предыдущий в базе + 1
+  const numInput = document.getElementById('fNumber');
+  numInput.value = nextFreeNumber();
+  numInput.readOnly = true;
+  document.getElementById('fNumberManual').checked = false;
   // Дата подставляется автоматически (сегодня)
   document.getElementById('fDate').value = new Date().toISOString().slice(0, 10);
   document.getElementById('fName').value = '';
@@ -1123,8 +1161,22 @@ async function saveOrder() {
   const name = document.getElementById('fName').value.trim();
   if (!name) { alert('Укажите имя заказчика'); return; }
 
+  const number = document.getElementById('fNumber').value.trim() || nextFreeNumber();
+
+  // проверка на дубли номеров: нельзя добавить заказ с уже существующим номером
+  const n = parseInt(number, 10);
+  const dup = orders.concat(archived).find(x => {
+    if (editingId && x.id === editingId) return false;
+    const xn = parseInt(x.number, 10);
+    return (!isNaN(n) && !isNaN(xn)) ? xn === n : x.number === number;
+  });
+  if (dup) {
+    alert('Заказ №' + number + ' уже существует (заказчик: ' + dup.name + ', от ' + fmtDate(dup.date) + ')\nУкажите другой номер.');
+    return;
+  }
+
   const row = {
-    number: document.getElementById('fNumber').value.trim() || String(nextNum).padStart(3, '0'),
+    number: number,
     date: document.getElementById('fDate').value,
     name: name,
     phone: document.getElementById('fPhone').value.trim(),
