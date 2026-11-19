@@ -3,4 +3,5 @@
 # Секреты и одноразовый установщик НЕ должны попадать в GitHub
 install.php
 db.php
+import_data.php
 *.zip
