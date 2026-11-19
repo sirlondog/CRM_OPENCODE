@@ -139,6 +139,13 @@
     font-size: 13px; cursor: pointer; background: var(--surface-2);
     color: var(--text); display: none; font-family: inherit;
   }
+  .filter-input {
+    padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13px; background: var(--surface-2); color: var(--text);
+    display: none; font-family: inherit; width: 220px;
+  }
+  .filter-input::placeholder { color: var(--text-muted); }
+  .filter-input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(62,207,142,.12); }
   .shop-link { color: var(--green); text-decoration: none; font-size: 13px; }
   .shop-link:hover { text-decoration: underline; }
   .cust-name { font-weight: 500; }
@@ -333,6 +340,9 @@
       </div>
       <div style="display:flex; align-items:center; gap:16px;">
         <span class="stats" id="stats"></span>
+        <input type="search" id="partSearch" class="filter-input" placeholder="Поиск по названию..."
+               list="partsDatalist" autocomplete="off" oninput="render()" style="display:none">
+        <datalist id="partsDatalist"></datalist>
         <select class="filter-select" id="partFilter" onchange="render()"></select>
         <button class="btn-add" id="btnAddOrder" onclick="openAddModal()">+ Добавить заказ</button>
         <button class="btn-add" id="btnAddPart" style="display:none" onclick="openPartModal()">+ Добавить деталь</button>
@@ -355,7 +365,7 @@
     <label for="pCategory">Категория *</label>
     <select id="pCategory"></select>
     <label for="pName">Точное название *</label>
-    <input id="pName" type="text" autocomplete="off" placeholder="AMD Ryzen 7 7800X3D BOX">
+    <input id="pName" type="text" autocomplete="off" list="partsDatalist" placeholder="AMD Ryzen 7 7800X3D BOX">
     <label for="pPrice">Цена, ₽</label>
     <input id="pPrice" type="number" min="0" step="1" autocomplete="off" placeholder="35000">
     <label for="pLink">Ссылка на магазин</label>
@@ -389,6 +399,8 @@
     <input id="fPhone" type="tel" name="customerPhone" autocomplete="tel" placeholder="+7 (___) ___-__-__">
     <label for="fLogin">Логин</label>
     <input id="fLogin" type="text" name="customerLogin" autocomplete="off" placeholder="логин заказчика">
+    <label for="fSource">Источник</label>
+    <input id="fSource" type="text" name="orderSource" autocomplete="off" placeholder="откуда пришёл клиент: Авито, ВК, знакомые...">
     <label>Конфигурация</label>
     <table class="config-table">
       <thead>
@@ -556,6 +568,7 @@ function switchTab(tab) {
   document.getElementById('tabParts').classList.toggle('active', tab === 'parts');
   const isParts = tab === 'parts';
   document.getElementById('partFilter').style.display = isParts ? 'inline-block' : 'none';
+  document.getElementById('partSearch').style.display = isParts ? 'inline-block' : 'none';
   document.getElementById('btnAddOrder').style.display = isParts ? 'none' : 'inline-block';
   document.getElementById('btnAddPart').style.display = isParts ? 'inline-block' : 'none';
   render();
@@ -697,13 +710,31 @@ let partEditId = null;
   document.getElementById('partFilter').innerHTML = '<option value="">Все категории</option>' + opts;
 })();
 
+// нормализация названия для поиска дублей: регистр, порядок слов и знаки не важны
+function normName(s) {
+  return String(s).toLowerCase()
+    .replace(/[^a-zа-яё0-9+]+/gi, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .sort()
+    .join(' ');
+}
+
 function renderParts() {
   document.getElementById('tableHead').innerHTML = '<tr>' +
     '<th>Категория</th><th>Название</th><th>Цена</th><th>Магазин</th><th>Действия</th></tr>';
 
+  // подсказки имён из базы для поиска и поля «Название»
+  document.getElementById('partsDatalist').innerHTML =
+    [...new Set(parts.map(p => p.name))].sort((a, b) => a.localeCompare(b, 'ru'))
+      .map(n => '<option value="' + esc(n) + '">').join('');
+
   const filter = document.getElementById('partFilter').value;
+  const q = document.getElementById('partSearch').value.trim().toLowerCase();
   const data = parts
     .filter(p => !filter || p.category === filter)
+    .filter(p => !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
     .sort((a, b) =>
       CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) ||
       a.name.localeCompare(b.name, 'ru'));
@@ -715,7 +746,9 @@ function renderParts() {
   const tbody = document.getElementById('tableBody');
   if (data.length === 0) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="5">' +
-      (parts.length === 0 ? 'Деталей пока нет — нажмите «+ Добавить деталь»' : 'В этой категории ничего нет') +
+      (q ? 'Ничего не найдено по запросу «' + esc(q) + '»'
+        : parts.length === 0 ? 'Деталей пока нет — нажмите «+ Добавить деталь»'
+        : 'В этой категории ничего нет') +
       '</td></tr>';
     return;
   }
@@ -757,6 +790,14 @@ function closePartModal() {
 async function savePart() {
   const name = document.getElementById('pName').value.trim();
   if (!name) { alert('Укажите точное название детали'); return; }
+
+  // проверка на дубли: совпадение даже при другом порядке слов и написании
+  const nn = normName(name);
+  const dup = parts.find(x => x.id !== partEditId && normName(x.name) === nn);
+  if (dup && !confirm('Похоже, такая деталь уже есть в базе:\n«' + dup.name + '» (' + dup.category + ')\n\nВсё равно добавить?')) {
+    return;
+  }
+
   const row = {
     category: document.getElementById('pCategory').value,
     name: name,
@@ -923,6 +964,7 @@ function openOrderCard(id) {
   document.getElementById('fName').value = o.name;
   document.getElementById('fPhone').value = o.phone;
   document.getElementById('fLogin').value = o.login || '';
+  document.getElementById('fSource').value = o.source || '';
   document.getElementById('fComment').value = o.comment;
   resetConfigRows(o.config);
   document.getElementById('fStatus').value = o.status;
@@ -1014,6 +1056,7 @@ function openAddModal() {
   document.getElementById('fName').value = '';
   document.getElementById('fPhone').value = '';
   document.getElementById('fLogin').value = '';
+  document.getElementById('fSource').value = '';
   document.getElementById('fComment').value = '';
   resetConfigRows();
   document.getElementById('fStatus').value = 'Согласование';
@@ -1035,24 +1078,34 @@ async function saveOrder() {
     name: name,
     phone: document.getElementById('fPhone').value.trim(),
     login: document.getElementById('fLogin').value.trim(),
+    source: document.getElementById('fSource').value.trim(),
     comment: document.getElementById('fComment').value.trim(),
     config: collectConfig(),
     status: document.getElementById('fStatus').value
   };
   const closed = row.status === 'Закрыт';
 
+  async function write(withSource) {
+    const p = withSource ? row : (() => { const c = { ...row }; delete c.source; return c; })();
+    if (editingId) {
+      return sb.from('orders').update({ ...p, archived: closed }).eq('id', editingId).select().single();
+    }
+    return sb.from('orders').insert(p).select().single();
+  }
+
   let saved;
+  // сначала пробуем сохранить с «Источником»; если в таблице ещё нет колонки source — повторяем без него
+  let res = await write(true);
+  if (res.error && /source/i.test(res.error.message || '')) {
+    console.warn('Колонка source отсутствует в таблице orders — «Источник» не сохранён в облако');
+    res = await write(false);
+  }
+  if (res.error) { alert('Ошибка сохранения: ' + res.error.message); return; }
+  saved = res.data;
+
   if (editingId) {
-    const { data, error } = await sb.from('orders')
-      .update({ ...row, archived: closed }).eq('id', editingId).select().single();
-    if (error) { alert('Ошибка сохранения: ' + error.message); return; }
-    saved = data;
     orders = orders.filter(x => x.id !== saved.id);
     archived = archived.filter(x => x.id !== saved.id);
-  } else {
-    const { data, error } = await sb.from('orders').insert(row).select().single();
-    if (error) { alert('Ошибка сохранения: ' + error.message); return; }
-    saved = data;
   }
 
   (closed ? archived : orders).push(saved);
