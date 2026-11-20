@@ -720,30 +720,159 @@
   </div>
 </div>
 
+<!-- ===== ДЕБАГ-ЛОГ ===== -->
+<style>
+  .dbg-fab { position:fixed; right:16px; bottom:16px; z-index:10000; width:50px; height:50px; border-radius:50%; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-size:22px; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; }
+  .dbg-fab:hover { border-color:var(--green); }
+  .dbg-badge { position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:9px; background:#e5484d; color:#fff; font-size:11px; line-height:18px; text-align:center; display:none; }
+  .dbg-badge.show { display:block; }
+  .dbg-panel { position:fixed; right:16px; bottom:76px; z-index:10001; width:min(620px, calc(100vw - 32px)); height:min(440px, calc(100vh - 100px)); display:none; flex-direction:column; background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:0 14px 44px rgba(0,0,0,.55); overflow:hidden; }
+  .dbg-panel.open { display:flex; }
+  .dbg-head { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--border); background:var(--surface-2); }
+  .dbg-title { font-size:14px; font-weight:600; margin-right:auto; }
+  .dbg-btn { border:1px solid var(--border); background:var(--surface-3); color:var(--text); border-radius:7px; padding:6px 10px; font-size:12px; cursor:pointer; }
+  .dbg-btn:hover { border-color:var(--green); color:var(--green); }
+  .dbg-body { flex:1; min-height:0; padding:8px; background:var(--bg); }
+  .dbg-log { width:100%; height:100%; resize:none; border:0; outline:none; background:transparent; color:var(--text-light); font:12px/1.5 Consolas,Monaco,monospace; }
+  .dbg-foot { padding:7px 12px; border-top:1px solid var(--border); font-size:11px; color:var(--text-muted); }
+</style>
+<button class="dbg-fab" id="dbgFab" type="button" title="Открыть дебаг-лог" onclick="dbgToggle()">🐞<span class="dbg-badge" id="dbgBadge"></span></button>
+<div class="dbg-panel" id="dbgPanel">
+  <div class="dbg-head">
+    <span class="dbg-title">Дебаг-лог CRM</span>
+    <button type="button" class="dbg-btn" id="dbgCopyBtn" onclick="dbgCopy()">Копировать</button>
+    <button type="button" class="dbg-btn" onclick="dbgClear()">Очистить</button>
+    <button type="button" class="dbg-btn" onclick="dbgToggle()">×</button>
+  </div>
+  <div class="dbg-body"><textarea class="dbg-log" id="dbgLogText" readonly spellcheck="false"></textarea></div>
+  <div class="dbg-foot">Если что-то пошло не так — нажмите «Копировать» и пришлите текст разработчику.</div>
+</div>
+
 <script>
 // ================= ХРАНЕНИЕ ДАННЫХ =================
 // Все данные лежат на вашем хостинге в MySQL. Страница разговаривает
 // с сервером через небольшой файл api.php. Внешние сервисы не нужны.
 const API_URL = 'api.php';
 
-async function api(action, payload) {
-  const isPost = payload !== undefined;
-  let res;
-  try {
-    res = await fetch(API_URL + '?a=' + encodeURIComponent(action), {
-      method: isPost ? 'POST' : 'GET',
-      credentials: 'same-origin',
-      headers: isPost ? { 'Content-Type': 'application/json' } : {},
-      body: isPost ? JSON.stringify(payload) : undefined
-    });
-  } catch (e) {
-    throw new Error('Не удалось связаться с сервером. Проверьте интернет и адрес сайта.');
+// ===== ДЕБАГ-ЛОГ =====
+const DBG_LIMIT = 300;
+let dbgEntries = [];
+let dbgErrors = 0;
+
+function dbgNow() {
+  const d = new Date();
+  return d.toISOString().replace('T', ' ').slice(0, 19) + '.' +
+    String(d.getMilliseconds()).padStart(3, '0');
+}
+function dbgExtra(extra) {
+  if (extra === undefined || extra === null || extra === '') return '';
+  try { return ' ' + JSON.stringify(extra); } catch (e) { return ' ' + String(extra); }
+}
+function dbgLog(level, message, extra) {
+  const tag = { OK: 'OK  ', INFO: 'INFO', ERROR: 'ERROR', WARN: 'WARN' }[level] || level;
+  const line = '[' + dbgNow() + '] [' + tag + '] ' + message + dbgExtra(extra);
+  dbgEntries.push(line);
+  if (dbgEntries.length > DBG_LIMIT) dbgEntries.splice(0, dbgEntries.length - DBG_LIMIT);
+  if (level === 'ERROR') {
+    dbgErrors++;
+    const badge = document.getElementById('dbgBadge');
+    if (badge) {
+      badge.textContent = dbgErrors > 99 ? '99+' : String(dbgErrors);
+      badge.classList.add('show');
+    }
   }
-  let data;
-  try { data = await res.json(); }
-  catch (e) { throw new Error('Сервер вернул неверный ответ (код ' + res.status + ')'); }
-  if (!res.ok || data.error) throw new Error(data.error || 'Ошибка сервера ' + res.status);
-  return data;
+  const panel = document.getElementById('dbgPanel');
+  if (panel && panel.classList.contains('open')) dbgRender();
+}
+function dbgRender() {
+  const box = document.getElementById('dbgLogText');
+  if (!box) return;
+  box.value = dbgEntries.length ? dbgEntries.join('\n') : 'Лог пуст.';
+  box.scrollTop = box.scrollHeight;
+}
+function dbgToggle() {
+  const panel = document.getElementById('dbgPanel');
+  if (!panel) return;
+  if (panel.classList.toggle('open')) dbgRender();
+}
+function dbgClear() {
+  dbgEntries = [];
+  dbgErrors = 0;
+  const badge = document.getElementById('dbgBadge');
+  if (badge) { badge.textContent = ''; badge.classList.remove('show'); }
+  dbgRender();
+}
+async function dbgCopy() {
+  const text = dbgEntries.join('\n') || 'Лог пуст.';
+  const btn = document.getElementById('dbgCopyBtn');
+  let ok = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    }
+  } catch (e) {}
+  if (!ok) {
+    const box = document.getElementById('dbgLogText');
+    if (box) {
+      box.value = text;
+      box.focus();
+      box.select();
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      box.setSelectionRange(box.value.length, box.value.length);
+    }
+  }
+  if (btn) {
+    const old = btn.textContent;
+    btn.textContent = ok ? 'Скопировано' : 'Выделите и скопируйте';
+    setTimeout(() => { btn.textContent = old; }, 1600);
+  }
+}
+
+window.addEventListener('error', function (e) {
+  if (e.target && e.target !== window) {
+    const src = e.target.src || e.target.href || '';
+    dbgLog('WARN', 'Ресурс не загрузился' + (src ? ': ' + src : ''));
+    return;
+  }
+  dbgLog('ERROR', 'JS: ' + (e.message || 'Неизвестная ошибка'),
+    e.filename ? { line: e.lineno, col: e.colno } : null);
+});
+window.addEventListener('unhandledrejection', function (e) {
+  const r = e.reason;
+  dbgLog('ERROR', 'Promise: ' + String((r && r.message) || r));
+});
+
+dbgLog('INFO', 'CRM запущена · ' + location.href);
+
+async function api(action, payload) {
+  const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+  const isPost = payload !== undefined;
+  let status = 0;
+  try {
+    let res;
+    try {
+      res = await fetch(API_URL + '?a=' + encodeURIComponent(action), {
+        method: isPost ? 'POST' : 'GET',
+        credentials: 'same-origin',
+        headers: isPost ? { 'Content-Type': 'application/json' } : {},
+        body: isPost ? JSON.stringify(payload) : undefined
+      });
+      status = res.status;
+    } catch (e) {
+      throw new Error('Не удалось связаться с сервером. Проверьте интернет и адрес сайта.');
+    }
+    let data;
+    try { data = await res.json(); }
+    catch (e) { throw new Error('Сервер вернул неверный ответ (код ' + res.status + ')'); }
+    if (!res.ok || data.error) throw new Error(data.error || 'Ошибка сервера ' + res.status);
+    const ms = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - t0);
+    dbgLog('OK', 'api ' + action + ' · HTTP ' + status + ' · ' + ms + ' мс');
+    return data;
+  } catch (e) {
+    dbgLog('ERROR', 'api ' + action + ' → ' + e.message, status ? { http: status } : null);
+    throw e;
+  }
 }
 
 // Небольшая совместимая прослойка: остальной код работает так же,
@@ -868,6 +997,7 @@ function load(key, def) {
 }
 
 async function loadAll() {
+  dbgLog('INFO', 'Загрузка данных с сервера…');
   const [o, p, s] = await Promise.all([
     sb.from('orders').select('*').order('id'),
     sb.from('parts').select('*').order('id'),
@@ -876,6 +1006,7 @@ async function loadAll() {
   const oRows = o.data || [], pRows = p.data || [], sRows = s.data || [];
   if (o.error || p.error || s.error) {
     const e = (o.error || p.error || s.error);
+    dbgLog('ERROR', 'Загрузка данных: ' + e.message);
     alert('Ошибка загрузки данных: ' + e.message);
   }
   orders = oRows.filter(x => !x.archived);
@@ -891,10 +1022,17 @@ async function loadAll() {
   archiveDates = parseArchiveDates(ar && ar.value);
   // Старые чеки, хранившиеся внутри позиций, один раз превращаются в общие.
   if (migrateStockFilesToReceipts()) {
+    dbgLog('INFO', 'Старые вложения перенесены в общие чеки');
     await Promise.all([saveReceiptsValue(), saveStockValue()]);
   }
   // Приводим имена чеков к виду ДД.ММ.ГГГГ_номер.
-  if (normalizeReceiptNames()) await saveReceiptsValue();
+  if (normalizeReceiptNames()) {
+    dbgLog('INFO', 'Имена чеков приведены к формату даты');
+    await saveReceiptsValue();
+  }
+  dbgLog('OK', 'Данные загружены: заказы ' + orders.length + ', архив ' + archived.length +
+    ', детали ' + parts.length + ', склад ' + stock.length + ', чеки ' + receipts.length +
+    ', позиция склада ' + Object.keys(archiveDates).length);
 }
 
 function parseArchiveDates(v) {
@@ -2617,8 +2755,10 @@ function uniqueReceiptFileName(original) {
 }
 
 async function addReceiptFiles(list) {
+  const before = receipts.length;
   for (const file of Array.from(list || [])) {
     if (file.size > 2 * 1024 * 1024) {
+      dbgLog('WARN', 'Файл больше 2 МБ, пропущен: ' + file.name);
       alert('Файл «' + file.name + '» больше 2 МБ — пропущен. Уменьшите фото перед загрузкой.');
       continue;
     }
@@ -2647,6 +2787,8 @@ async function addReceiptFiles(list) {
     stockReceiptIds.push(receipt.id);
   }
   await saveReceiptsValue();
+  dbgLog('OK', 'Загрузка чеков: добавлено ' + (receipts.length - before) +
+    ', всего чеков ' + receipts.length);
   renderStockReceipts();
 }
 
@@ -2744,7 +2886,7 @@ setInterval(() => {
   try {
     const d = await api('me');
     if (d && d.login) await enterApp();
-  } catch (e) { /* не вошли — показываем форму входа */ }
+  } catch (e) { dbgLog('INFO', 'Автовход: активной сессии нет'); }
 })();
 </script>
 
