@@ -272,6 +272,14 @@
   .order-date { color: var(--text-muted); font-size: 11px; font-family: var(--mono); }
   .comment-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-light); }
 
+  .comment-add-row { display:flex; gap:8px; margin-top:10px; }
+  .comment-add-row input { flex:1; min-width:0; }
+  .comment-add-btn { flex:0 0 auto; padding:9px 12px; white-space:nowrap; }
+  .comment-list { display:flex; flex-direction:column; gap:6px; margin-top:10px; max-height:220px; overflow:auto; }
+  .comment-item { border:1px solid var(--border-soft); border-radius:8px; padding:8px 10px; background:var(--surface-2); font-size:13px; line-height:1.45; }
+  .comment-item-meta { color:var(--text-muted); font-size:11px; font-family:var(--mono); margin-bottom:3px; }
+  .comment-empty { color:var(--text-muted); font-size:12px; }
+
   .badge {
     display: inline-block; padding: 4px 12px; border-radius: 6px;
     font-size: 12px; font-weight: 500; cursor: pointer; user-select: none;
@@ -695,6 +703,12 @@
       <div class="section-body">
         <label for="fComment">Комментарий</label>
         <textarea id="fComment" name="comment" autocomplete="off" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
+        <div class="comment-add-row">
+          <input id="fCommentInput" type="text" autocomplete="off" placeholder="Новый комментарий…"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderComment();}">
+          <button type="button" class="btn-save comment-add-btn" onclick="addOrderComment()">Добавить комментарий</button>
+        </div>
+        <div id="commentList" class="comment-list"></div>
       </div>
     </div>
 
@@ -1239,6 +1253,52 @@ function applyCommentStampOnSave() {
   }
   // текст изменён не в конце истории — дописываем новую пометку с текущим текстом
   return orig + '\n\n' + stamp + '\n' + current.trim();
+}
+
+// Разбираем историю комментариев на записи вида "[дата, автор]\nтекст".
+function parseOrderComments(text) {
+  const src = String(text || '').trim();
+  if (!src) return [];
+  const re = /(?:^|\n{2,})\[([^\]\n]+)\]\s*\n?([\s\S]*?)(?=\n{2,}\[[^\]\n]+\]\s*\n?|$)/g;
+  const out = [];
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const body = m[2].trim();
+    if (body) out.push({ meta: m[1].trim(), text: body });
+  }
+  if (!out.length) out.push({ meta: '', text: src });
+  return out;
+}
+
+function renderCommentList(text) {
+  const box = document.getElementById('commentList');
+  if (!box) return;
+  const items = parseOrderComments(text);
+  if (!items.length) {
+    box.innerHTML = '<div class="comment-empty">Комментариев пока нет. Добавьте первый ниже.</div>';
+    return;
+  }
+  box.innerHTML = items.slice().reverse().map(it =>
+    '<div class="comment-item">' +
+      (it.meta ? '<div class="comment-item-meta">' + esc(it.meta) + '</div>' : '') +
+      '<div>' + esc(it.text).replace(/\n/g, '<br>') + '</div>' +
+    '</div>'
+  ).join('');
+}
+
+async function addOrderComment() {
+  await refreshCurrentUserLabel();
+  const input = document.getElementById('fCommentInput');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) { input.focus(); return; }
+  const area = document.getElementById('fComment');
+  const stamp = commentStamp();
+  const prev = area.value.replace(/\s+$/, '');
+  area.value = (prev ? prev + '\n\n' : '') + stamp + '\n' + text;
+  input.value = '';
+  renderCommentList(area.value);
+  input.focus();
 }
 
 async function enterApp() {
@@ -1973,6 +2033,8 @@ function openOrderCard(id) {
   document.getElementById('fShip').value = o.ship || '';
   document.getElementById('fAddress').value = o.address || '';
   document.getElementById('fComment').value = o.comment;
+  document.getElementById('fCommentInput').value = '';
+  renderCommentList(o.comment);
   renderConfigBlocks(normalizeConfigBlocks(o.config));
   document.getElementById('fStatus').value = o.status;
   setOrderSectionsCollapsed(false);
@@ -2095,6 +2157,8 @@ function openAddModal() {
   document.getElementById('fShip').value = '';
   document.getElementById('fAddress').value = '';
   document.getElementById('fComment').value = '';
+  document.getElementById('fCommentInput').value = '';
+  renderCommentList('');
   renderConfigBlocks(null);
   document.getElementById('fStatus').value = 'Согласование';
   setOrderSectionsCollapsed(true);
