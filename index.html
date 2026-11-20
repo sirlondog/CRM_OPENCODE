@@ -1750,19 +1750,22 @@ function fillDashMonths(keep) {
 }
 
 async function loadExpensesIfAdmin() {
-  if (!isAdmin()) { expenses = []; return; }
+  expensesLoadError = '';
+  if (!isAdmin()) { expenses = []; expensesLoadError = 'Нет прав (нужен admin).'; return; }
   try {
     const d = await api('expenses_list');
     expenses = d.expenses || [];
   } catch (e) {
     console.warn('loadExpensesIfAdmin', e);
     expenses = [];
+    expensesLoadError = (e && e.message) ? e.message : 'Не удалось загрузить расходы. Проверьте таблицу expenses в БД и доступ.';
   }
 }
 function renderExpenses() {
   const tbody = document.getElementById('expensesBody');
   if (!tbody) return;
   if (!isAdmin()) { tbody.innerHTML = '<tr><td colspan="5">Недоступно</td></tr>'; return; }
+  if (expensesLoadError) { tbody.innerHTML = '<tr><td colspan="5">' + esc(expensesLoadError) + '</td></tr>'; return; }
   if (!expenses.length) { tbody.innerHTML = '<tr><td colspan="5">Расходов пока нет</td></tr>'; return; }
   tbody.innerHTML = expenses.map(e => '<tr>' +
     '<td>' + esc(fmtDate(e.dt)) + '</td>' +
@@ -2510,7 +2513,9 @@ document.addEventListener('keydown', e => {
 
 // ================= СКЛАД (только для логина admin) =================
 let stock = [];                 // позиции склада
-let receipts = [];              // общие чеки {id, name, mime, size, data}
+let receipts = [];
+let expenses = [];
+let expensesLoadError = '';              // общие чеки {id, name, mime, size, data}
 let stockEditId = null;         // id редактируемой позиции
 let stockRelated = [];          // выбранные id заказов
 let stockReceiptIds = [];       // id чеков, привязанных к текущей позиции
