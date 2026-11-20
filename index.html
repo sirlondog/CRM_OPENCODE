@@ -270,6 +270,8 @@
   .status-menu .menu-item.current { font-weight: 600; color: var(--green); }
   .status-menu .menu-item.current::after { content: ' ✓'; }
   .order-date { color: var(--text-muted); font-size: 11px; font-family: var(--mono); }
+  .order-status-line { margin-top: 4px; }
+  .order-status-line .badge { font-size: 10px; padding: 2px 6px; line-height: 1.2; max-width: 100%; }
   .comment-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-light); }
 
   .comment-add-row { display:flex; gap:8px; margin-top:10px; }
@@ -505,6 +507,7 @@
   <header>
     <div class="logo">CRM-<span>STARCOMP</span></div>
     <div class="header-right">
+      <button class="btn-add" id="btnAddOrderHeader" style="display:none" title="Добавить заказ" onclick="openAddModal()"><span class="btn-part-full">+ Добавить заказ</span><span class="btn-part-plus">+</span></button>
       <button class="btn-logout" onclick="doLogout()">Выйти</button>
     </div>
   </header>
@@ -525,7 +528,6 @@
                list="partsDatalist" autocomplete="off" oninput="render()" style="display:none">
         <datalist id="partsDatalist"></datalist>
         <select class="filter-select" id="partFilter" onchange="render()"></select>
-        <button class="btn-add" id="btnAddOrder" title="Добавить заказ" onclick="openAddModal()"><span class="btn-part-full">+ Добавить заказ</span><span class="btn-part-plus">+</span></button>
         <button class="btn-add" id="btnAddStock" style="display:none" title="Добавить позицию на склад" onclick="openStockModal()"><span class="btn-part-full">+ Добавить позицию</span><span class="btn-part-plus">+</span></button>
       </div>
     </div>
@@ -1350,7 +1352,10 @@ function switchTab(tab) {
   const isDash = tab === 'dashboard' && isAdmin();
   document.getElementById('partFilter').style.display = isParts ? 'inline-block' : 'none';
   document.getElementById('partSearch').style.display = isParts ? 'inline-block' : 'none';
-  document.getElementById('btnAddOrder').style.display = (isParts || isStock || isDash) ? 'none' : 'inline-block';
+  const isOrdersView = (tab === 'orders' || tab === 'archive');
+  const showAddOrderHeader = isAdmin() && isOrdersView;
+  const btnAddH = document.getElementById('btnAddOrderHeader');
+  if (btnAddH) btnAddH.style.display = showAddOrderHeader ? 'inline-flex' : 'none';
   document.getElementById('btnAddPart').style.display = isParts ? 'inline-block' : 'none';
   document.getElementById('btnAddStock').style.display =
     (isStock && !stockArchiveView) ? 'inline-block' : 'none';
@@ -1375,7 +1380,7 @@ function statusBadge(status) {
 }
 
 const ORDERS_HEAD = '<tr>' +
-  '<th>№ заказа</th><th>Статус</th><th>Заказчик</th><th>Стоимость</th>' +
+  '<th>№ заказа</th><th>Заказчик</th><th>Стоимость</th>' +
   '<th>Комментарий</th></tr>';
 
 // стоимость на главной = сумма ВСЕХ отмеченных конфигураций (галочки в карточке);
@@ -1415,8 +1420,8 @@ function render() {
         ' | Отказ: ' + orders.filter(o => o.status === 'Отказ').length;
 
   if (data.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">' +
-      (isArchive ? 'Архив пуст' : 'Заказов пока нет — нажмите «+ Добавить заказ»') + '</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="4">' +
+      (isArchive ? 'Архив пуст' : 'Заказов пока нет — нажмите «+» в шапке справа') + '</td></tr>';
     return;
   }
 
@@ -1425,8 +1430,8 @@ function render() {
     return '<tr>' +
       '<td><div class="num-wrap"><a class="order-num" title="Открыть карточку заказа" onclick="openOrderCard(' + o.id + ')">' + esc(o.number) + '</a>' +
         '<button class="btn-copy" title="Скопировать заказ текстом (для мессенджера)" onclick="copyOrder(' + o.id + ', this)">💾</button></div>' +
-        '<div class="order-date">' + esc(fmtDate(o.date)) + '</div></td>' +
-      '<td>' + statusBadge(o.status, o.id) + '</td>' +
+        '<div class="order-date">' + esc(fmtDate(o.date)) + '</div>' +
+        '<div class="order-status-line">' + statusBadge(o.status, o.id) + '</div></td>' +
       '<td><div class="cust-name">' + esc(o.name) + '</div>' +
         '<div class="cust-phone">' + esc(o.phone) + '</div>' +
         (o.login ? '<div class="cust-login">@' + esc(o.login) + '</div>' : '') + '</td>' +
@@ -2463,6 +2468,9 @@ function updateAdminUI() {
   document.getElementById('tabStock').style.display = on ? '' : 'none';
   document.getElementById('tabDashboard').style.display = on ? '' : 'none';
   if (!on) document.getElementById('stockActions').style.display = 'none';
+  const isOrdersView = (currentTab === 'orders' || currentTab === 'archive');
+  const btnAddH = document.getElementById('btnAddOrderHeader');
+  if (btnAddH) btnAddH.style.display = (on && isOrdersView) ? 'inline-flex' : 'none';
   if (!on && (currentTab === 'stock' || currentTab === 'dashboard')) switchTab('orders');
   else document.getElementById('btnAddStock').style.display =
     (on && currentTab === 'stock' && !stockArchiveView) ? 'inline-block' : 'none';
