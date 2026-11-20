@@ -29,14 +29,31 @@ jobs:
           port = int(os.environ.get('SFTP_PORT') or 22)
           user = os.environ['SFTP_USER']
           password = os.environ['SFTP_PASS']
-          target = os.environ['SFTP_TARGET'].rstrip('/')
+          target = os.environ['SFTP_TARGET'].strip().rstrip('/')
 
           client = paramiko.SSHClient()
           client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
           client.connect(host, port=port, username=user, password=password, timeout=30)
           sftp = client.open_sftp()
 
-          remote = target + '/index.html'
+          # На reg.ru путь обычно относительный: www/имя-домена.
+          # Подстрахуемся, если в секрете указали ведущий / или только имя домена.
+          candidates = [target, target.lstrip('/')]
+          if '/' not in target.lstrip('/'):
+              candidates.append('www/' + target.lstrip('/'))
+          candidates.append('www/' + target.lstrip('/').split('/')[-1])
+          chosen = None
+          for candidate in dict.fromkeys(candidates):
+              try:
+                  if sftp.stat(candidate):
+                      chosen = candidate
+                      break
+              except Exception:
+                  pass
+          if not chosen:
+              raise SystemExit('SFTP target not found: ' + ', '.join(candidates))
+
+          remote = chosen + '/index.html'
           tmp = remote + '.deploy-tmp'
           sftp.put('hosting/index.html', tmp)
           sftp.rename(tmp, remote)
