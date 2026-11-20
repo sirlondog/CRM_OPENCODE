@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CRM-STARCOMP</title>
 <script>
   // GitHub Pages — только исходники. Рабочая CRM и база находятся на хостинге.
@@ -508,6 +508,8 @@
     <div class="logo">CRM-<span>STARCOMP</span></div>
     <div class="header-right">
       <button class="btn-add" id="btnAddOrderHeader" style="display:none" title="Добавить заказ" onclick="openAddModal()"><span class="btn-part-full">+ Добавить заказ</span><span class="btn-part-plus">+</span></button>
+      <button class="btn-add" id="btnAddPartHeader" style="display:none" title="Добавить железо" onclick="openPartModal()"><span class="btn-part-full">+ Добавить</span><span class="btn-part-plus">+</span></button>
+      <button class="btn-add" id="btnAddStockHeader" style="display:none" title="Добавить позицию на склад" onclick="openStockModal()"><span class="btn-part-full">+ Добавить</span><span class="btn-part-plus">+</span></button>
       <button class="btn-logout" onclick="doLogout()">Выйти</button>
     </div>
   </header>
@@ -528,7 +530,6 @@
                list="partsDatalist" autocomplete="off" oninput="render()" style="display:none">
         <datalist id="partsDatalist"></datalist>
         <select class="filter-select" id="partFilter" onchange="render()"></select>
-        <button class="btn-add" id="btnAddStock" style="display:none" title="Добавить позицию на склад" onclick="openStockModal()"><span class="btn-part-full">+ Добавить позицию</span><span class="btn-part-plus">+</span></button>
       </div>
     </div>
 
@@ -1356,9 +1357,10 @@ function switchTab(tab) {
   const showAddOrderHeader = isAdmin() && isOrdersView;
   const btnAddH = document.getElementById('btnAddOrderHeader');
   if (btnAddH) btnAddH.style.display = showAddOrderHeader ? 'inline-flex' : 'none';
-  document.getElementById('btnAddPart').style.display = isParts ? 'inline-block' : 'none';
-  document.getElementById('btnAddStock').style.display =
-    (isStock && !stockArchiveView) ? 'inline-block' : 'none';
+  const btnAddPartH = document.getElementById('btnAddPartHeader');
+  if (btnAddPartH) btnAddPartH.style.display = (isAdmin() && isParts) ? 'inline-flex' : 'none';
+  const btnAddStockH = document.getElementById('btnAddStockHeader');
+  if (btnAddStockH) btnAddStockH.style.display = (isAdmin() && isStock && !stockArchiveView) ? 'inline-flex' : 'none';
   document.getElementById('stockActions').style.display = isStock ? 'flex' : 'none';
   document.getElementById('stockViewActive').classList.toggle('active', !stockArchiveView);
   document.getElementById('stockViewArchive').classList.toggle('active', stockArchiveView);
@@ -2469,11 +2471,15 @@ function updateAdminUI() {
   document.getElementById('tabDashboard').style.display = on ? '' : 'none';
   if (!on) document.getElementById('stockActions').style.display = 'none';
   const isOrdersView = (currentTab === 'orders' || currentTab === 'archive');
+  const isParts = currentTab === 'parts';
+  const isStock = currentTab === 'stock';
   const btnAddH = document.getElementById('btnAddOrderHeader');
   if (btnAddH) btnAddH.style.display = (on && isOrdersView) ? 'inline-flex' : 'none';
+  const btnAddPartH = document.getElementById('btnAddPartHeader');
+  if (btnAddPartH) btnAddPartH.style.display = (on && isParts) ? 'inline-flex' : 'none';
+  const btnAddStockH = document.getElementById('btnAddStockHeader');
+  if (btnAddStockH) btnAddStockH.style.display = (on && isStock && !stockArchiveView) ? 'inline-flex' : 'none';
   if (!on && (currentTab === 'stock' || currentTab === 'dashboard')) switchTab('orders');
-  else document.getElementById('btnAddStock').style.display =
-    (on && currentTab === 'stock' && !stockArchiveView) ? 'inline-block' : 'none';
 }
 
 function todayStr() {
