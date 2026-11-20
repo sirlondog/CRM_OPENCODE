@@ -728,7 +728,7 @@
   .dbg-badge.show { display:block; }
   .dbg-panel { position:fixed; right:16px; bottom:76px; z-index:10001; width:min(620px, calc(100vw - 32px)); height:min(440px, calc(100vh - 100px)); display:none; flex-direction:column; background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:0 14px 44px rgba(0,0,0,.55); overflow:hidden; }
   .dbg-panel.open { display:flex; }
-  .dbg-head { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--border); background:var(--surface-2); }
+  .dbg-head { display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:10px 12px; border-bottom:1px solid var(--border); background:var(--surface-2); }
   .dbg-title { font-size:14px; font-weight:600; margin-right:auto; }
   .dbg-btn { border:1px solid var(--border); background:var(--surface-3); color:var(--text); border-radius:7px; padding:6px 10px; font-size:12px; cursor:pointer; }
   .dbg-btn:hover { border-color:var(--green); color:var(--green); }
@@ -740,12 +740,15 @@
 <div class="dbg-panel" id="dbgPanel">
   <div class="dbg-head">
     <span class="dbg-title">Дебаг-лог CRM</span>
+    <select class="dbg-btn" id="dbgDay" title="День"></select>
+    <button type="button" class="dbg-btn" onclick="dbgLoadServer()">С сервера</button>
+    <button type="button" class="dbg-btn" onclick="dbgShowLocal()">Локально</button>
     <button type="button" class="dbg-btn" id="dbgCopyBtn" onclick="dbgCopy()">Копировать</button>
     <button type="button" class="dbg-btn" onclick="dbgClear()">Очистить</button>
     <button type="button" class="dbg-btn" onclick="dbgToggle()">×</button>
   </div>
   <div class="dbg-body"><textarea class="dbg-log" id="dbgLogText" readonly spellcheck="false"></textarea></div>
-  <div class="dbg-foot">Если что-то пошло не так — нажмите «Копировать» и пришлите текст разработчику.</div>
+  <div class="dbg-foot">Логи сохраняются на хостинге в crm_logs/YYYY-MM-DD.log. Кнопка «С сервера» открывает файл за выбранный день.</div>
 </div>
 
 <script>
@@ -758,6 +761,11 @@ const API_URL = 'api.php';
 const DBG_LIMIT = 300;
 let dbgEntries = [];
 let dbgErrors = 0;
+let dbgPending = [];        // ещё не отправленные на сервер строки
+let dbgAuthorized = false;  // логи пишем только после входа в CRM
+let dbgSending = false;
+let dbgNextTry = 0;
+let dbgViewingServer = false;
 
 function dbgNow() {
   const d = new Date();
@@ -773,6 +781,8 @@ function dbgLog(level, message, extra) {
   const line = '[' + dbgNow() + '] [' + tag + '] ' + message + dbgExtra(extra);
   dbgEntries.push(line);
   if (dbgEntries.length > DBG_LIMIT) dbgEntries.splice(0, dbgEntries.length - DBG_LIMIT);
+  dbgPending.push(line);
+  if (dbgPending.length > 500) dbgPending.splice(0, dbgPending.length - 500);
   if (level === 'ERROR') {
     dbgErrors++;
     const badge = document.getElementById('dbgBadge');
@@ -785,6 +795,7 @@ function dbgLog(level, message, extra) {
   if (panel && panel.classList.contains('open')) dbgRender();
 }
 function dbgRender() {
+  if (dbgViewingServer) return;
   const box = document.getElementById('dbgLogText');
   if (!box) return;
   box.value = dbgEntries.length ? dbgEntries.join('\n') : 'Лог пуст.';
@@ -798,12 +809,17 @@ function dbgToggle() {
 function dbgClear() {
   dbgEntries = [];
   dbgErrors = 0;
+  dbgPending = [];
+  dbgViewingServer = false;
   const badge = document.getElementById('dbgBadge');
   if (badge) { badge.textContent = ''; badge.classList.remove('show'); }
   dbgRender();
 }
 async function dbgCopy() {
-  const text = dbgEntries.join('\n') || 'Лог пуст.';
+  const box = document.getElementById('dbgLogText');
+  const text = (dbgViewingServer && box && box.value)
+    ? box.value
+    : (dbgEntries.join('\n') || 'Лог пуст.');
   const btn = document.getElementById('dbgCopyBtn');
   let ok = false;
   try {
@@ -813,7 +829,6 @@ async function dbgCopy() {
     }
   } catch (e) {}
   if (!ok) {
-    const box = document.getElementById('dbgLogText');
     if (box) {
       box.value = text;
       box.focus();
@@ -829,6 +844,56 @@ async function dbgCopy() {
   }
 }
 
+// Отправка накопленных строк на хостинг.
+async function dbgFlush() {
+  if (!dbgAuthorized || dbgSending || !dbgPending.length) return;
+  if (Date.now() < dbgNextTry) return;
+  dbgSending = true;
+  const lines = dbgPending.splice(0);
+  try {
+    await api('debug_append', { text: lines.join('\n') + '\n' });
+  } catch (e) {
+    dbgPending = lines.concat(dbgPending);
+    dbgNextTry = Date.now() + 30000;
+  } finally {
+    dbgSending = false;
+  }
+}
+function dbgSendBeacon() {
+  if (!dbgAuthorized || !dbgPending.length || !navigator.sendBeacon) return;
+  const text = dbgPending.splice(0).join('\n') + '\n';
+  try {
+    navigator.sendBeacon(API_URL + '?a=debug_append',
+      new Blob([JSON.stringify({ text: text })], { type: 'application/json' }));
+  } catch (e) {}
+}
+
+// Просмотр серверного файла прямо из дебаг-окна.
+async function dbgLoadServer() {
+  const sel = document.getElementById('dbgDay');
+  const day = sel && sel.value ? sel.value : todayStr();
+  try {
+    const d = await api('debug_read', { day: day });
+    if (d && d.days && sel) {
+      sel.innerHTML = d.days.map(x =>
+        '<option value="' + x + '"' + (x === d.day ? ' selected' : '') + '>' + x + '</option>'
+      ).join('');
+    }
+    const box = document.getElementById('dbgLogText');
+    if (box) {
+      box.value = d.text || 'Лог за ' + d.day + ' пуст.';
+      box.scrollTop = box.scrollHeight;
+    }
+    dbgViewingServer = true;
+  } catch (e) {
+    dbgLog('ERROR', 'Чтение серверного лога: ' + e.message);
+  }
+}
+function dbgShowLocal() {
+  dbgViewingServer = false;
+  dbgRender();
+}
+
 window.addEventListener('error', function (e) {
   if (e.target && e.target !== window) {
     const src = e.target.src || e.target.href || '';
@@ -842,6 +907,8 @@ window.addEventListener('unhandledrejection', function (e) {
   const r = e.reason;
   dbgLog('ERROR', 'Promise: ' + String((r && r.message) || r));
 });
+window.addEventListener('beforeunload', dbgSendBeacon);
+setInterval(() => { dbgFlush(); }, 15000);
 
 dbgLog('INFO', 'CRM запущена · ' + location.href);
 
@@ -867,10 +934,14 @@ async function api(action, payload) {
     catch (e) { throw new Error('Сервер вернул неверный ответ (код ' + res.status + ')'); }
     if (!res.ok || data.error) throw new Error(data.error || 'Ошибка сервера ' + res.status);
     const ms = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - t0);
-    dbgLog('OK', 'api ' + action + ' · HTTP ' + status + ' · ' + ms + ' мс');
+    if (action !== 'debug_append') {
+      dbgLog('OK', 'api ' + action + ' · HTTP ' + status + ' · ' + ms + ' мс');
+    }
     return data;
   } catch (e) {
-    dbgLog('ERROR', 'api ' + action + ' → ' + e.message, status ? { http: status } : null);
+    if (action !== 'debug_append') {
+      dbgLog('ERROR', 'api ' + action + ' → ' + e.message, status ? { http: status } : null);
+    }
     throw e;
   }
 }
@@ -1177,6 +1248,8 @@ async function enterApp() {
   if (login) login.remove();
   document.getElementById('app').style.display = 'block';
   await refreshCurrentUserLabel();
+  dbgAuthorized = true;
+  dbgFlush();
   updateAdminUI();
   await migrateLocalData();
   await loadAll();

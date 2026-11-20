@@ -45,6 +45,20 @@ function needAuth() {
 function strval0($v) {
     return $v === null ? '' : (string)$v;
 }
+
+// Дебаг-логи хранятся вне публичной папки сайта: по одному файлу на день.
+function debugLogDir() {
+    $dir = dirname(dirname(__DIR__)) . '/crm_logs';
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    $ht = $dir . '/.htaccess';
+    if (!file_exists($ht)) {
+        @file_put_contents($ht,
+            "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n" .
+            "<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n");
+    }
+    return $dir;
+}
+
 function orderRow($pdo, $id) {
     $st = $pdo->prepare('SELECT * FROM orders WHERE id = ?');
     $st->execute([$id]);
@@ -262,6 +276,39 @@ switch ($action) {
         $st = $pdo->prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
         $st->execute([$k, $v]);
         out(['ok' => true]);
+
+    // ---------- ДЕБАГ-ЛОГ ----------
+    case 'debug_append':
+        needAuth();
+        $in = input();
+        $text = strval0($in['text'] ?? '');
+        if ($text !== '') {
+            $dir = debugLogDir();
+            $file = $dir . '/' . date('Y-m-d') . '.log';
+            // Если файл стал слишком большим, оставляем только последние 2 МБ.
+            if (file_exists($file) && filesize($file) > 5 * 1024 * 1024) {
+                $tail = substr(file_get_contents($file), -2 * 1024 * 1024);
+                @file_put_contents($file, "[старые записи обрезаны]\n" . $tail, LOCK_EX);
+            }
+            @file_put_contents($file, $text, FILE_APPEND | LOCK_EX);
+        }
+        out(['ok' => true]);
+
+    case 'debug_read':
+        $user = needAuth();
+        if ($user !== 'admin') fail('Недостаточно прав', 403);
+        $in = input();
+        $day = preg_replace('/[^0-9-]/', '', strval0($in['day'] ?? ''));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) $day = date('Y-m-d');
+        $dir = debugLogDir();
+        $file = $dir . '/' . $day . '.log';
+        $text = file_exists($file) ? strval0(file_get_contents($file)) : '';
+        $days = [];
+        foreach (glob($dir . '/????-??-??.log') as $f) {
+            $days[] = basename($f, '.log');
+        }
+        rsort($days);
+        out(['ok' => true, 'day' => $day, 'days' => $days, 'text' => $text]);
 
     default:
         fail('Неизвестное действие', 404);
