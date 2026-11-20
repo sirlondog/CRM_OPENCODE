@@ -54,9 +54,11 @@ jobs:
               raise SystemExit('SFTP target not found: ' + ', '.join(candidates))
 
           remote = chosen + '/index.html'
-          tmp = remote + '.deploy-tmp'
-          sftp.put('hosting/index.html', tmp)
-          sftp.rename(tmp, remote)
+          try:
+              sftp.remove(remote + '.deploy-tmp')
+          except Exception:
+              pass
+          sftp.put('hosting/index.html', remote)
           try:
               sftp.chmod(remote, 0o644)
           except Exception:
