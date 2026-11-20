@@ -12,7 +12,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Upload index.html to crm.star-comp.ru via SFTP
+      - name: Upload CRM to crm.star-comp.ru via SFTP
         env:
           SFTP_HOST: ${{ secrets.SFTP_HOST }}
           SFTP_PORT: ${{ secrets.SFTP_PORT }}
@@ -53,18 +53,15 @@ jobs:
           if not chosen:
               raise SystemExit('SFTP target not found: ' + ', '.join(candidates))
 
-          remote = chosen + '/index.html'
-          try:
-              sftp.remove(remote + '.deploy-tmp')
-          except Exception:
-              pass
-          sftp.put('hosting/index.html', remote)
-          try:
-              sftp.chmod(remote, 0o644)
-          except Exception:
-              pass
+          for name in ['index.html', 'api.php']:
+              remote = chosen + '/' + name
+              sftp.put(name, remote)
+              try:
+                  sftp.chmod(remote, 0o644)
+              except Exception:
+                  pass
+              print('Deployed ' + name + ' to ' + remote)
 
           sftp.close()
           client.close()
-          print('Deployed hosting/index.html to ' + remote)
           PY

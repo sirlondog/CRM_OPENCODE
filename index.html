@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CRM-STARCOMP</title>
+<script>
+  // GitHub Pages — только исходники. Рабочая CRM и база находятся на хостинге.
+  if (location.hostname === 'sirlondog.github.io') {
+    location.replace('https://crm.star-comp.ru/');
+  }
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -451,7 +457,6 @@
     .toolbar > div:last-child { flex-wrap: wrap; gap: 10px; }
   }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -717,11 +722,135 @@
 
 <script>
 // ================= ХРАНЕНИЕ ДАННЫХ =================
-// Все данные хранятся в Supabase — облачной базе данных.
-// Заказы, детали и счётчик номеров видны с любого компьютера после входа.
-const SUPABASE_URL = 'https://ebpusmjozyyvdyhrwafk.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVicHVzbWpvenl5dmR5aHJ3YWZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ2NjYzNjIsImV4cCI6MjExMDI0MjM2Mn0.sr4-Fw_7heJtIcF5ahM1tEIONDaUyOTdvmwbTKLGalU';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Все данные лежат на вашем хостинге в MySQL. Страница разговаривает
+// с сервером через небольшой файл api.php. Внешние сервисы не нужны.
+const API_URL = 'api.php';
+
+async function api(action, payload) {
+  const isPost = payload !== undefined;
+  let res;
+  try {
+    res = await fetch(API_URL + '?a=' + encodeURIComponent(action), {
+      method: isPost ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      headers: isPost ? { 'Content-Type': 'application/json' } : {},
+      body: isPost ? JSON.stringify(payload) : undefined
+    });
+  } catch (e) {
+    throw new Error('Не удалось связаться с сервером. Проверьте интернет и адрес сайта.');
+  }
+  let data;
+  try { data = await res.json(); }
+  catch (e) { throw new Error('Сервер вернул неверный ответ (код ' + res.status + ')'); }
+  if (!res.ok || data.error) throw new Error(data.error || 'Ошибка сервера ' + res.status);
+  return data;
+}
+
+// Небольшая совместимая прослойка: остальной код работает так же,
+// как с облаком, но все запросы уходят на api.php.
+let _cache = null;
+let _cachePromise = null;
+async function ensureCache() {
+  if (!_cachePromise) {
+    _cachePromise = api('bootstrap').then(d => { _cache = d; return d; });
+  }
+  return _cachePromise;
+}
+async function refreshCache() {
+  _cachePromise = api('bootstrap').then(d => { _cache = d; return d; });
+  return _cachePromise;
+}
+function cachedRows(table) {
+  const d = _cache || {};
+  if (table === 'orders') return d.orders || [];
+  if (table === 'parts') return d.parts || [];
+  if (table === 'settings') {
+    const s = d.settings || {};
+    return Object.keys(s).map(k => ({ key: k, value: s[k] }));
+  }
+  return [];
+}
+
+class ApiQuery {
+  constructor(table) {
+    this.table = table;
+    this.op = null;
+    this.payload = null;
+    this.filters = [];
+    this._p = null;
+  }
+  select() { return this; }
+  order() { return this; }
+  eq(col, val) { this.filters.push([col, val]); return this; }
+  single() { return this; }
+  insert(row) { this.op = 'insert'; this.payload = row; return this; }
+  update(row) { this.op = 'update'; this.payload = row; return this; }
+  upsert(row) { this.op = 'upsert'; this.payload = row; return this; }
+  delete() { this.op = 'delete'; return this; }
+  then(ok, bad) { return this.execute().then(ok, bad); }
+  execute() {
+    if (!this._p) this._p = this._run();
+    return this._p;
+  }
+  id() {
+    const f = this.filters.find(x => x[0] === 'id');
+    return f ? f[1] : null;
+  }
+  async _run() {
+    // чтение — из общего кэша, чтобы не дёргать сервер три раза подряд
+    if (!this.op) {
+      await ensureCache();
+      return { data: cachedRows(this.table), error: null };
+    }
+    try {
+      let data = null;
+      if (this.table === 'orders') {
+        const id = this.id();
+        let row = Object.assign({}, this.payload || {});
+        if (id != null) row.id = id;
+        if (this.op === 'update') {
+          const old = cachedRows('orders').find(x => String(x.id) === String(id)) || {};
+          row = Object.assign({}, old, row, { id: id });
+        }
+        if (this.op === 'insert' && row.archived === undefined &&
+            (row.status === 'Закрыт' || row.status === 'Отказ')) {
+          row.archived = true;
+        }
+        const d = await api('order_save', row);
+        data = d.order;
+      } else if (this.table === 'parts') {
+        const id = this.id();
+        let row = Object.assign({}, this.payload || {});
+        if (id != null) row.id = id;
+        if (this.op === 'update') {
+          const old = cachedRows('parts').find(x => String(x.id) === String(id)) || {};
+          row = Object.assign({}, old, row, { id: id });
+        }
+        if (this.op === 'delete') {
+          await api('part_delete', { id: id });
+        } else {
+          const d = await api('part_save', row);
+          data = d.part;
+        }
+      } else if (this.table === 'settings') {
+        const rows = Array.isArray(this.payload) ? this.payload : [this.payload];
+        for (const r of rows) {
+          if (!r || r.key === undefined || r.key === null) continue;
+          await api('settings_set', {
+            k: r.key,
+            v: r.value === undefined || r.value === null ? '' : String(r.value)
+          });
+        }
+      }
+      await refreshCache();
+      return { data: data, error: null };
+    } catch (e) {
+      return { data: null, error: { message: e.message } };
+    }
+  }
+}
+
+const sb = { from(table) { return new ApiQuery(table); } };
 
 let editingId = null; // id заказа в режиме редактирования
 
@@ -818,41 +947,9 @@ function visibleArchive() {
   return archived.filter(archiveVisibleToIgor);
 }
 
-// Разовый перенос данных из localStorage старой версии в облако
+// Разовый перенос из localStorage нужен был только для облачной версии.
+// На хостинге данные уже лежат в MySQL — просто чистим старые ключи.
 async function migrateLocalData() {
-  const oldOrders = load('crm_orders', []);
-  const oldArch = load('crm_archived', []);
-  const oldParts = load('crm_parts', []);
-  const oldNum = load('crm_nextnum', 1);
-  if (!oldOrders.length && !oldArch.length && !oldParts.length) {
-    ['crm_pass', 'crm_auth'].forEach(k => localStorage.removeItem(k));
-    return;
-  }
-  const ok = confirm(
-    'Найдены данные старой версии на этом компьютере:\n' +
-    '• заказов: ' + (oldOrders.length + oldArch.length) + '\n' +
-    '• деталей: ' + oldParts.length + '\n\n' +
-    'Перенести их в облачную базу? (Нажмите «Отмена», чтобы удалить их без переноса)'
-  );
-  if (ok) {
-    if (oldParts.length) {
-      const { error } = await sb.from('parts').upsert(oldParts.map(x => ({
-        id: x.id, category: x.category, name: x.name, price: x.price || 0, link: x.link || ''
-      })));
-      if (error) alert('Не удалось перенести детали: ' + error.message);
-    }
-    const allOld = oldOrders.map(x => ({ ...x, archived: false }))
-      .concat(oldArch.map(x => ({ ...x, archived: true })));
-    if (allOld.length) {
-      const { error } = await sb.from('orders').upsert(allOld.map(x => ({
-        id: x.id, number: x.number, date: x.date, name: x.name,
-        phone: x.phone || '', login: x.login || '', comment: x.comment || '',
-        config: x.config || [], status: x.status || 'Согласование', archived: x.archived
-      })));
-      if (error) alert('Не удалось перенести заказы: ' + error.message);
-    }
-    await sb.from('settings').upsert({ key: 'nextnum', value: Number(oldNum) || 1 });
-  }
   ['crm_orders', 'crm_archived', 'crm_parts', 'crm_nextnum', 'crm_pass', 'crm_auth']
     .forEach(k => localStorage.removeItem(k));
 }
@@ -877,33 +974,24 @@ async function doLogin() {
     document.getElementById('loginError').textContent = 'Введите логин и пароль';
     return;
   }
-  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-  if (error) {
-    document.getElementById('loginError').textContent = 'Неверный логин или пароль';
-    return;
+  try {
+    await api('login', { login: email, password: pass });
+    await enterApp();
+  } catch (e) {
+    document.getElementById('loginError').textContent = e.message;
   }
-  await enterApp();
 }
 async function doLogout() {
-  await sb.auth.signOut();
+  try { await api('logout'); } catch (e) {}
   location.reload();
 }
 let currentUserLabelStr = '';
 let originalOrderComment = '';
 
-function userLabelFromSession(session) {
-  const u = session && session.user;
-  if (!u) return '';
-  const email = (u.email || '').toLowerCase();
-  if (email === 'igor@star-comp.ru') return 'igor';
-  if (email === 'admin@star-comp.ru') return 'admin';
-  return u.email || (u.user_metadata && (u.user_metadata.login || u.user_metadata.name)) || 'user';
-}
-
 async function refreshCurrentUserLabel() {
   try {
-    const { data } = await sb.auth.getSession();
-    currentUserLabelStr = userLabelFromSession(data && data.session);
+    const d = await api('me');
+    currentUserLabelStr = d.login || '';
   } catch (e) { currentUserLabelStr = currentUserLabelStr || ''; }
   return currentUserLabelStr;
 }
@@ -1855,7 +1943,7 @@ async function _saveOrder() {
 
   // Пробуем сохранить всё; если в таблице orders ещё нет какой-то колонки
   // (source, payment, ship, address...), убираем её из запроса и повторяем.
-  // Как только колонку добавят в Supabase — поля начнут сохраняться сами.
+  // Лишние поля api.php просто игнорирует.
   async function write(payload) {
     if (editingId) {
       return sb.from('orders').update({ ...payload, archived: closed }).eq('id', editingId).select().single();
@@ -2018,7 +2106,6 @@ function receiptDataKey(f) {
 }
 
 // Перенос старых вложений из позиций в общий список чеков.
-// Старый массив files оставляем пустым, но сам файл не теряем — он переезжает в receipts.
 function migrateStockFilesToReceipts() {
   let changed = false;
   stock.forEach(s => {
@@ -2615,8 +2702,10 @@ setInterval(() => {
 // ================= АВТОВХОД =================
 // если пользователь уже входил (сессия сохранена) — открываем приложение сразу
 (async () => {
-  const { data } = await sb.auth.getSession();
-  if (data && data.session) await enterApp();
+  try {
+    const d = await api('me');
+    if (d && d.login) await enterApp();
+  } catch (e) { /* не вошли — показываем форму входа */ }
 })();
 </script>
 
