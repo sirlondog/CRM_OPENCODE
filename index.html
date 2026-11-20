@@ -467,6 +467,20 @@
     /* строка вкладок переносится, кнопки не вылезают за экран */
     .tabs { flex-wrap: wrap; }
     .toolbar > div:last-child { flex-wrap: wrap; gap: 10px; }
+    /* конфигурация заказа: категория отдельно, выбор модели — под ней */
+    .config-table thead { display: none; }
+    .config-table, .config-table tbody, .config-table tr, .config-table td { display: block; width: 100%; }
+    .config-table tr { padding: 7px 0; border-bottom: 1px solid var(--border-soft); }
+    .config-table tr:last-child { border-bottom: none; }
+    .config-table td { padding: 3px 0; border-bottom: none; }
+    .config-table .config-line {
+      width: auto; white-space: normal; font-size: 12px;
+      color: var(--text-light); font-weight: 500;
+    }
+    .config-table select, .config-table input {
+      width: 100%; box-sizing: border-box; font-size: 16px; min-height: 40px;
+    }
+    .config-table .config-part { margin-top: 2px; }
   }
 </style>
 </head>
