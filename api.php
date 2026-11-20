@@ -80,6 +80,7 @@ function orderRow($pdo, $id) {
         'config'   => is_array($cfg) ? $cfg : [],
         'status'   => (string)$o['status'],
         'archived' => (bool)$o['archived'],
+        'updated_at' => isset($o['updated_at']) ? (string)$o['updated_at'] : null,
     ];
 }
 function partRow($pdo, $id) {
@@ -172,6 +173,7 @@ switch ($action) {
                 'config'   => is_array($cfg) ? $cfg : [],
                 'status'   => (string)$o['status'],
                 'archived' => (bool)$o['archived'],
+                'updated_at' => isset($o['updated_at']) ? (string)$o['updated_at'] : null,
             ];
         }
         $parts = [];
@@ -212,12 +214,25 @@ switch ($action) {
         $status   = strval0($in['status'] ?? 'Согласование');
         if ($status === '') $status = 'Согласование';
         $archived = !empty($in['archived']) ? 1 : 0;
+        $expectedUpdated = $in['expected_updated_at'] ?? null;
+        if ($expectedUpdated !== null && $expectedUpdated !== '') $expectedUpdated = strval0($expectedUpdated);
+        else $expectedUpdated = null;
 
         if ($id) {
-            $st = $pdo->prepare('UPDATE orders SET number=?, date=?, name=?, phone=?, login=?, source=?, payment=?, ship=?, address=?, comment=?, config=?, status=?, archived=? WHERE id=?');
-            $st->execute([$number, $date, $name, $phone, $login, $source, $payment, $ship, $address, $comment, $config, $status, $archived, $id]);
+            if ($expectedUpdated !== null) {
+                $st = $pdo->prepare('UPDATE orders SET number=?, date=?, name=?, phone=?, login=?, source=?, payment=?, ship=?, address=?, comment=?, config=?, status=?, archived=?, updated_at=NOW() WHERE id=? AND (updated_at IS NULL OR updated_at = ?)');
+                $st->execute([$number, $date, $name, $phone, $login, $source, $payment, $ship, $address, $comment, $config, $status, $archived, $id, $expectedUpdated]);
+                if ($st->rowCount() === 0) {
+                    $cur = orderRow($pdo, $id);
+                    if (!$cur) fail('Заказ не найден', 404);
+                    out(['error' => 'conflict', 'message' => 'Заказ был изменён другим пользователем. Обновите данные (закройте и откройте заказ) и повторите сохранение.', 'order' => $cur], 409);
+                }
+            } else {
+                $st = $pdo->prepare('UPDATE orders SET number=?, date=?, name=?, phone=?, login=?, source=?, payment=?, ship=?, address=?, comment=?, config=?, status=?, archived=?, updated_at=NOW() WHERE id=?');
+                $st->execute([$number, $date, $name, $phone, $login, $source, $payment, $ship, $address, $comment, $config, $status, $archived, $id]);
+            }
         } else {
-            $st = $pdo->prepare('INSERT INTO orders (number, date, name, phone, login, source, payment, ship, address, comment, config, status, archived) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+            $st = $pdo->prepare('INSERT INTO orders (number, date, name, phone, login, source, payment, ship, address, comment, config, status, archived, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, NOW())');
             $st->execute([$number, $date, $name, $phone, $login, $source, $payment, $ship, $address, $comment, $config, $status, $archived]);
             $id = (int)$pdo->lastInsertId();
         }

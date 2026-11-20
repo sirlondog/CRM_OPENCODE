@@ -1085,6 +1085,7 @@ class ApiQuery {
 const sb = { from(table) { return new ApiQuery(table); } };
 
 let editingId = null; // id заказа в режиме редактирования
+let editingOrderUpdatedAt = null;
 
 let orders = [];   // активные заказы
 let archived = []; // архив
@@ -1316,6 +1317,7 @@ async function addOrderComment() {
   area.value = (prev ? prev + '\n\n' : '') + stamp + '\n' + text;
   input.value = '';
   renderCommentList(area.value);
+  if (typeof scheduleOrderDraftSave === 'function') scheduleOrderDraftSave();
   input.focus();
 }
 
@@ -2031,32 +2033,134 @@ function collectConfigBlocks() {
 }
 
 // ================= КАРТОЧКА ЗАКАЗА (РЕДАКТИРОВАНИЕ) =================
+
+// ===== Черновики заказа (localStorage, автосохранение на лету) =====
+function orderDraftKey() {
+  if (editingId) return 'order_draft_id_' + editingId;
+  return 'order_draft_new';
+}
+function collectOrderDraftPayload() {
+  try {
+    return {
+      number: (document.getElementById('fNumber').value || ''),
+      date: (document.getElementById('fDate').value || ''),
+      name: (document.getElementById('fName').value || ''),
+      phone: (document.getElementById('fPhone').value || ''),
+      login: (document.getElementById('fLogin').value || ''),
+      source: (document.getElementById('fSource').value || ''),
+      payment: (document.getElementById('fPayment').value || ''),
+      ship: (document.getElementById('fShip').value || ''),
+      address: (document.getElementById('fAddress').value || ''),
+      comment: (document.getElementById('fComment').value || ''),
+      status: (document.getElementById('fStatus').value || 'Согласование'),
+      config: collectConfigBlocks()
+    };
+  } catch (e) { return null; }
+}
+function saveOrderDraftNow() {
+  try {
+    var key = orderDraftKey();
+    var payload = collectOrderDraftPayload();
+    if (!payload) return;
+    // do not save completely empty new drafts
+    var hasContent = (payload.name && payload.name.trim()) || (payload.comment && payload.comment.trim()) || (payload.phone && payload.phone.trim());
+    if (!editingId && !hasContent) { localStorage.removeItem(key); return; }
+    localStorage.setItem(key, JSON.stringify({ t: Date.now(), payload: payload }));
+  } catch (e) { console.warn('draft save', e); }
+}
+var _orderDraftTimer = null;
+function scheduleOrderDraftSave() {
+  if (_orderDraftTimer) clearTimeout(_orderDraftTimer);
+  _orderDraftTimer = setTimeout(function() { saveOrderDraftNow(); _orderDraftTimer = null; }, 600);
+}
+function clearOrderDraft() {
+  try {
+    localStorage.removeItem(orderDraftKey());
+  } catch (e) {}
+}
+function applyOrderDraftPayload(p) {
+  if (!p) return;
+  if (document.getElementById('fDate')) document.getElementById('fDate').value = p.date || '';
+  if (document.getElementById('fName')) document.getElementById('fName').value = p.name || '';
+  if (document.getElementById('fPhone')) document.getElementById('fPhone').value = p.phone || '';
+  if (document.getElementById('fLogin')) document.getElementById('fLogin').value = p.login || '';
+  if (document.getElementById('fSource')) document.getElementById('fSource').value = p.source || '';
+  if (document.getElementById('fPayment')) document.getElementById('fPayment').value = p.payment || '';
+  if (document.getElementById('fShip')) document.getElementById('fShip').value = p.ship || '';
+  if (document.getElementById('fAddress')) document.getElementById('fAddress').value = p.address || '';
+  if (document.getElementById('fComment')) document.getElementById('fComment').value = p.comment || '';
+  if (document.getElementById('fStatus')) document.getElementById('fStatus').value = p.status || 'Согласование';
+  if (typeof renderCommentList === 'function') renderCommentList(p.comment || '');
+  if (typeof renderConfigBlocks === 'function') renderConfigBlocks(p.config || null);
+}
+function tryRestoreOrderDraft(isNew) {
+  try {
+    var key = orderDraftKey();
+    var raw = localStorage.getItem(key);
+    if (!raw) return;
+    var obj = JSON.parse(raw);
+    var payload = obj && obj.payload ? obj.payload : null;
+    if (!payload) return;
+    var msg = isNew ? 'Найден несохранённый черновик нового заказа. Восстановить?' : 'Найден несохранённый черновик этого заказа. Восстановить?';
+    if (confirm(msg)) {
+      applyOrderDraftPayload(payload);
+    } else {
+      localStorage.removeItem(key);
+    }
+  } catch (e) { console.warn('draft restore', e); }
+}
+function bindOrderDraftAutosave() {
+  var ids = ['fDate','fName','fPhone','fLogin','fSource','fPayment','fShip','fAddress','fComment','fStatus'];
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.removeEventListener('input', scheduleOrderDraftSave);
+    el.removeEventListener('change', scheduleOrderDraftSave);
+    el.addEventListener('input', scheduleOrderDraftSave);
+    el.addEventListener('change', scheduleOrderDraftSave);
+  });
+}
+(function(){
+  var overlay = document.getElementById('modalOverlay');
+  if (!overlay || overlay._draftBound) return;
+  overlay._draftBound = true;
+  overlay.addEventListener('input', function(e) {
+    if (e.target && (e.target.id === 'fCommentInput' || e.target.closest && (e.target.closest('#cfgWrap') || e.target.closest('#modalBody')))) {
+      scheduleOrderDraftSave();
+    }
+  }, true);
+  overlay.addEventListener('change', function() { scheduleOrderDraftSave(); }, true);
+})();
+
 function openOrderCard(id) {
   orderSaving = false;
   setFormBusy('btnOrderSave', false);
   const o = orders.find(x => x.id === id) || archived.find(x => x.id === id);
   if (!o) return;
   editingId = id;
+  editingOrderUpdatedAt = o.updated_at || null;
   originalOrderComment = o.comment || '';
   document.getElementById('modalTitle').textContent = 'Карточка заказа №' + o.number;
   document.getElementById('fNumber').value = o.number;
   document.getElementById('fNumber').readOnly = true;
   document.getElementById('fNumberManual').checked = false;
-  document.getElementById('fDate').value = o.date;
-  document.getElementById('fName').value = o.name;
-  document.getElementById('fPhone').value = o.phone;
+  document.getElementById('fDate').value = o.date || '';
+  document.getElementById('fName').value = o.name || '';
+  document.getElementById('fPhone').value = o.phone || '';
   document.getElementById('fLogin').value = o.login || '';
   document.getElementById('fSource').value = o.source || '';
   document.getElementById('fPayment').value = o.payment || '';
   document.getElementById('fShip').value = o.ship || '';
   document.getElementById('fAddress').value = o.address || '';
-  document.getElementById('fComment').value = o.comment;
+  document.getElementById('fComment').value = o.comment || '';
   document.getElementById('fCommentInput').value = '';
-  renderCommentList(o.comment);
+  renderCommentList(o.comment || '');
   renderConfigBlocks(normalizeConfigBlocks(o.config));
-  document.getElementById('fStatus').value = o.status;
+  document.getElementById('fStatus').value = o.status || 'Согласование';
   setOrderSectionsCollapsed(false);
   document.getElementById('modalOverlay').classList.add('open');
+  bindOrderDraftAutosave();
+  tryRestoreOrderDraft(false);
   document.getElementById('fName').focus();
 }
 
@@ -2158,14 +2262,13 @@ function openAddModal() {
   orderSaving = false;
   setFormBusy('btnOrderSave', false);
   editingId = null;
+  editingOrderUpdatedAt = null;
   originalOrderComment = '';
   document.getElementById('modalTitle').textContent = 'Новый заказ';
-  // Номер подставляется автоматически: предыдущий в базе + 1
   const numInput = document.getElementById('fNumber');
   numInput.value = nextFreeNumber();
   numInput.readOnly = true;
   document.getElementById('fNumberManual').checked = false;
-  // Дата подставляется автоматически (сегодня)
   document.getElementById('fDate').value = new Date().toISOString().slice(0, 10);
   document.getElementById('fName').value = '';
   document.getElementById('fPhone').value = '';
@@ -2181,10 +2284,13 @@ function openAddModal() {
   document.getElementById('fStatus').value = 'Согласование';
   setOrderSectionsCollapsed(true);
   document.getElementById('modalOverlay').classList.add('open');
+  bindOrderDraftAutosave();
+  tryRestoreOrderDraft(true);
 }
 
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('open');
+  editingOrderUpdatedAt = null;
 }
 
 async function saveOrder() {
@@ -2236,14 +2342,13 @@ async function _saveOrder() {
   };
   const closed = row.status === 'Закрыт' || row.status === 'Отказ';
 
-  // Пробуем сохранить всё; если в таблице orders ещё нет какой-то колонки
-  // (source, payment, ship, address...), убираем её из запроса и повторяем.
-  // Лишние поля api.php просто игнорирует.
   async function write(payload) {
     if (editingId) {
-      return sb.from('orders').update({ ...payload, archived: closed }).eq('id', editingId).select().single();
+      payload = { ...payload, archived: closed };
+      if (typeof editingOrderUpdatedAt !== 'undefined' && editingOrderUpdatedAt) payload.expected_updated_at = editingOrderUpdatedAt;
+      return sb.from('orders').update(payload).eq('id', editingId).select().single();
     }
-    return sb.from('orders').insert(payload).select().single();
+    return sb.from('orders').insert({ ...payload, archived: closed }).select().single();
   }
 
   let saved;
@@ -2252,8 +2357,15 @@ async function _saveOrder() {
   for (let attempt = 0; attempt < 10; attempt++) {
     res = await write(payload);
     if (!res.error) break;
-    // ищем в сообщении об ошибке имя отсутствующей колонки
-    const msg = res.error.message || '';
+    const msg = (res.error && res.error.message) ? String(res.error.message) : '';
+    if (msg.toLowerCase().includes('изменён другим') || msg.toLowerCase().includes('changed by another') || msg.indexOf('409') >= 0 || (res.error && res.error.code === 'PGRST301')) {
+      alert('Заказ был изменён другим пользователем. Откройте заказ заново и перенесите нужные изменения.');
+      await refreshCache().catch(() => {});
+      if (typeof loadAll === 'function') await loadAll().catch(() => {});
+      if (currentTab !== 'orders') switchTab('orders'); else render();
+      closeModal();
+      return;
+    }
     const matches = msg.match(/'([a-zA-Z_][a-zA-Z0-9_]*)'/g) || [];
     let removed = false;
     for (const m of matches) {
@@ -2276,10 +2388,8 @@ async function _saveOrder() {
   }
 
   (closed ? archived : orders).push(saved);
-  // дата ухода в архив нужна, чтобы igor видел заказ только 10 дней
   if (closed) markArchived(saved.id); else unmarkArchived(saved.id);
 
-  // счётчик номеров растёт при занятом номере
   const usedNum = parseInt(saved.number, 10);
   if (!isNaN(usedNum) && usedNum >= nextNum) {
     nextNum = usedNum + 1;
@@ -2287,7 +2397,9 @@ async function _saveOrder() {
   }
 
   originalOrderComment = commentFinal || '';
+  editingOrderUpdatedAt = saved.updated_at || null;
   editingId = null;
+  clearOrderDraft();
   closeModal();
   if (currentTab !== 'orders') switchTab('orders'); else render();
 }
