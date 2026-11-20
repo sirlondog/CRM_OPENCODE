@@ -365,6 +365,9 @@
   .stock-rel-item:hover { background: var(--surface-2); }
   .stock-rel-item input[type="checkbox"] { width: auto !important; margin: 0; accent-color: var(--green); }
   .stock-rel-empty { color: var(--text-muted); font-size: 12px; padding: 8px; }
+  .receipt-picker { max-height: 170px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; padding: 4px; background: var(--bg); }
+  .receipt-picker a { color: var(--green); text-decoration: underline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .receipt-picker .stock-file-size { margin-left: auto; white-space: nowrap; }
   .stock-selected { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .stock-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); font-size: 12px; }
   .stock-chip button { border: 0; background: none; color: var(--text-muted); font-size: 16px; line-height: 1; cursor: pointer; }
@@ -613,10 +616,11 @@
     </details>
 
     <details class="stock-more" data-stock-more>
-      <summary>Файлы чека</summary>
-      <label class="stock-file-label" for="stockFileInput">Прикрепить файлы</label>
-      <input id="stockFileInput" type="file" multiple accept="image/*,.pdf" onchange="addStockFiles(this.files)">
-      <div class="stock-files" id="sFiles"></div>
+      <summary>Чеки</summary>
+      <label class="stock-file-label" for="receiptFileInput">Загрузить чек</label>
+      <input id="receiptFileInput" type="file" multiple accept="image/*,.pdf" onchange="addReceiptFiles(this.files)">
+      <div class="stock-hint">Один чек можно отметить у нескольких позиций</div>
+      <div class="receipt-picker" id="sReceiptPicker"></div>
     </details>
 
     <div class="modal-buttons">
@@ -752,8 +756,14 @@ async function loadAll() {
   nextNum = nn ? (Number(nn.value) || 1) : 1;
   const sr = sRows.find(x => x.key === 'stock_items');
   stock = parseStockValue(sr && sr.value);
+  const rr = sRows.find(x => x.key === 'stock_receipts');
+  receipts = parseReceiptsValue(rr && rr.value);
   const ar = sRows.find(x => x.key === 'archive_dates');
   archiveDates = parseArchiveDates(ar && ar.value);
+  // Старые чеки, хранившиеся внутри позиций, один раз превращаются в общие.
+  if (migrateStockFilesToReceipts()) {
+    await Promise.all([saveReceiptsValue(), saveStockValue()]);
+  }
 }
 
 function parseArchiveDates(v) {
@@ -1908,9 +1918,10 @@ document.addEventListener('keydown', e => {
 
 // ================= СКЛАД (только для логина admin) =================
 let stock = [];                 // позиции склада
+let receipts = [];              // общие чеки {id, name, mime, size, data}
 let stockEditId = null;         // id редактируемой позиции
 let stockRelated = [];          // выбранные id заказов
-let stockFiles = [];            // файлы чека {name, mime, size, data}
+let stockReceiptIds = [];       // id чеков, привязанных к текущей позиции
 let posSuggest = [];            // подсказки моделей из «Железо»
 let posActive = -1;             // активная подсказка при выборе стрелками
 let stockSelected = new Set();  // отмеченные галочками позиции склада
@@ -1976,10 +1987,69 @@ function parseStockValue(v) {
   } catch (e) { return []; }
 }
 
+function parseReceiptsValue(v) {
+  if (!v) return [];
+  try {
+    const o = JSON.parse(v);
+    return Array.isArray(o) ? o : (Array.isArray(o.items) ? o.items : []);
+  } catch (e) { return []; }
+}
+
+async function saveReceiptsValue() {
+  const { error } = await sb.from('settings')
+    .upsert({ key: 'stock_receipts', value: JSON.stringify({ items: receipts }) });
+  if (error) throw new Error(error.message);
+}
+
 async function saveStockValue() {
   const { error } = await sb.from('settings')
     .upsert({ key: 'stock_items', value: JSON.stringify({ items: stock }) });
   if (error) throw new Error(error.message);
+}
+
+// Ключ по содержимому файла: одинаковые фото из разных позиций считаются одним чеком.
+function receiptDataKey(f) {
+  const data = String(f && f.data || '');
+  let hash = 5381;
+  for (let i = 0; i < data.length; i += 97) {
+    hash = ((hash * 33) ^ data.charCodeAt(i)) >>> 0;
+  }
+  return hash + '_' + data.length;
+}
+
+// Перенос старых вложений из позиций в общий список чеков.
+// Старый массив files оставляем пустым, но сам файл не теряем — он переезжает в receipts.
+function migrateStockFilesToReceipts() {
+  let changed = false;
+  stock.forEach(s => {
+    const ids = Array.isArray(s.receiptIds) ? s.receiptIds.slice() : [];
+    const oldFiles = Array.isArray(s.files) ? s.files : [];
+    oldFiles.forEach(f => {
+      if (!f || !f.data) return;
+      const key = receiptDataKey(f);
+      let r = receipts.find(x => receiptDataKey(x) === key);
+      if (!r) {
+        r = {
+          id: Date.now() + Math.random(),
+          name: f.name || f.origName || 'chek',
+          origName: f.origName || f.name || 'chek',
+          mime: f.mime || 'application/octet-stream',
+          size: f.size || 0,
+          data: f.data,
+          created: s.date || todayStr()
+        };
+        receipts.push(r);
+        changed = true;
+      }
+      if (ids.indexOf(r.id) < 0) ids.push(r.id);
+    });
+    if (oldFiles.length || (ids.length !== (s.receiptIds || []).length)) {
+      s.receiptIds = ids;
+      s.files = [];
+      changed = true;
+    }
+  });
+  return changed;
 }
 
 function partName(id) {
@@ -2000,7 +2070,10 @@ function stockSearchText(s) {
   const p = parts.find(x => String(x.id) === String(s.position));
   const rel = (s.related || []).map(id => orderById(id)).filter(Boolean)
     .map(o => '№' + o.number + ' ' + (o.name || '') + ' ' + (o.login || ''));
-  const files = (s.files || []).map(f => String(f.name || '') + ' ' + String(f.origName || ''));
+  const files = (s.receiptIds || []).map(id => {
+    const r = receipts.find(x => x.id === id);
+    return r ? String(r.name || '') + ' ' + String(r.origName || '') : '';
+  }).concat((s.files || []).map(f => String(f.name || '') + ' ' + String(f.origName || '')));
   return [
     fmtDate(s.date), partName(s.position), s.position, p && p.category,
     s.serial, s.cost, s.supplier, s.warranty, s.checkText,
@@ -2106,9 +2179,9 @@ function renderStock() {
     const relHtml = rel.length
       ? rel.map(o => '<a class="order-num" title="Открыть заказ" onclick="event.stopPropagation();openOrderCard(' + o.id + ')">№' + esc(o.number) + '</a>').join(', ')
       : '—';
-    const files = s.files || [];
+    const receiptCount = (s.receiptIds || []).length || (s.files || []).length;
     let checkHtml = s.checkText ? esc(s.checkText) : '';
-    if (files.length) checkHtml += (checkHtml ? '<br>' : '') + '📎 ' + files.length;
+    if (receiptCount) checkHtml += (checkHtml ? '<br>' : '') + '📎 ' + receiptCount;
     return '<tr style="cursor:pointer" onclick="openStockModal(' + s.id + ')">' +
       '<td><input type="checkbox" class="stock-check" value="' + s.id + '" ' +
         (stockSelected.has(s.id) ? 'checked' : '') +
@@ -2190,13 +2263,9 @@ function duplicateSelectedStock() {
       n++;
     }
   }
-  // Файлы копии получают новый номер записи — имена не совпадут с оригиналом
-  if (copy.files) copy.files = copy.files.map(f => {
-    const n = String(f.name);
-    return Object.assign({}, f, {
-      name: n.replace(/^(\d{8})_\d+_(\d+_)/, '$1_' + copy.id + '_$2')
-    });
-  });
+  // Чеки общие: копия ссылается на те же записи, без дублирования файлов
+  copy.receiptIds = Array.isArray(copy.receiptIds) ? copy.receiptIds.slice() : [];
+  copy.files = [];
   stock.push(copy);
   stockSelected.clear();
   saveStockValue()
@@ -2347,11 +2416,11 @@ async function openStockModal(id) {
   document.getElementById('sCheckText').value = s ? (s.checkText || '') : '';
 
   stockRelated = s ? (s.related || []).slice() : [];
-  stockFiles = s ? (s.files || []).map(f => Object.assign({}, f)) : [];
+  stockReceiptIds = s ? (s.receiptIds || []).slice() : [];
   document.getElementById('sOrderSearch').value = '';
-  document.getElementById('stockFileInput').value = '';
+  document.getElementById('receiptFileInput').value = '';
   renderStockRel();
-  renderStockFiles();
+  renderStockReceipts();
   previewWarranty();
   document.getElementById('stockOverlay').classList.add('open');
   clearTimeout(stockFocusTimer);
@@ -2395,44 +2464,33 @@ function toggleStockRel(id, on) {
   renderStockRel();
 }
 
-function renderStockFiles() {
-  document.getElementById('sFiles').innerHTML = stockFiles.length
-    ? stockFiles.map((f, i) =>
-        '<div class="stock-file"><a href="data:' + esc(f.mime) + ';base64,' + f.data +
-        '" download="' + esc(f.name) + '"' +
-        (f.origName ? ' title="Было: ' + esc(f.origName) + '"' : '') +
-        '>' + esc(f.name) + '</a>' +
-        '<span class="stock-file-size">' + Math.round((f.size || 0) / 1024) + ' КБ</span>' +
-        '<button type="button" title="Удалить файл" onclick="removeStockFile(' + i + ')">×</button></div>'
+function renderStockReceipts() {
+  document.getElementById('sReceiptPicker').innerHTML = receipts.length
+    ? receipts.map((r, i) =>
+        '<label class="stock-rel-item"><input type="checkbox" ' +
+        (stockReceiptIds.indexOf(r.id) >= 0 ? 'checked' : '') +
+        ' onchange="toggleStockReceipt(' + i + ',this.checked)"> ' +
+        '<a href="data:' + esc(r.mime) + ';base64,' + r.data + '" download="' + esc(r.name) + '"' +
+        ' title="Открыть чек">' + esc(r.name) + '</a>' +
+        '<span class="stock-file-size">' + Math.round((r.size || 0) / 1024) + ' КБ</span></label>'
       ).join('')
-    : '<div class="stock-rel-empty">Файлы не прикреплены</div>';
+    : '<div class="stock-rel-empty">Чеки ещё не загружены</div>';
 }
 
-function removeStockFile(i) {
-  stockFiles.splice(i, 1);
-  renderStockFiles();
+function toggleStockReceipt(i, on) {
+  const id = receipts[i].id;
+  if (on) { if (stockReceiptIds.indexOf(id) < 0) stockReceiptIds.push(id); }
+  else stockReceiptIds = stockReceiptIds.filter(x => x !== id);
+  renderStockReceipts();
 }
 
-// Имена файлов: ДАТА_НОМЕР_ЗАПИСИ_ПОРЯДОК_прежнее имя.
-// Так фото и чеки разных позиций никогда не совпадут.
-function stockFilePrefix() {
-  const d = document.getElementById('sDate').value;
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(d) ? d.replace(/-/g, '') : todayStr().replace(/-/g, '');
-  return day + '_' + (stockPendingId || stockEditId || Date.now());
-}
-function uniqueStockFileName(original) {
-  const prefix = stockFilePrefix();
-  const clean = String(original || 'file').trim().replace(/[\\/:*?"<>|]/g, '_') || 'file';
-  let n = 1;
-  const re = new RegExp('^' + prefix + '_(\\d+)_');
-  stockFiles.forEach(f => {
-    const m = String(f.name).match(re);
-    if (m) n = Math.max(n, Number(m[1]) + 1);
-  });
-  return prefix + '_' + String(n).padStart(2, '0') + '_' + clean;
+function uniqueReceiptFileName(original) {
+  const clean = String(original || 'chek').trim().replace(/[\\/:*?"<>|]/g, '_') || 'chek';
+  return todayStr().replace(/-/g, '') + '_' +
+    String(receipts.length + 1).padStart(2, '0') + '_' + clean;
 }
 
-async function addStockFiles(list) {
+async function addReceiptFiles(list) {
   for (const file of Array.from(list || [])) {
     if (file.size > 2 * 1024 * 1024) {
       alert('Файл «' + file.name + '» больше 2 МБ — пропущен. Уменьшите фото перед загрузкой.');
@@ -2444,15 +2502,26 @@ async function addStockFiles(list) {
       r.onerror = reject;
       r.readAsDataURL(file);
     });
-    stockFiles.push({
-      name: uniqueStockFileName(file.name),
+    const probe = { size: file.size, data: data };
+    const exists = receipts.find(x => receiptDataKey(x) === receiptDataKey(probe));
+    if (exists) {
+      if (stockReceiptIds.indexOf(exists.id) < 0) stockReceiptIds.push(exists.id);
+      continue;
+    }
+    const receipt = {
+      id: Date.now() + Math.random(),
+      name: uniqueReceiptFileName(file.name),
       origName: file.name,
       mime: file.type || 'application/octet-stream',
       size: file.size,
-      data: data
-    });
+      data: data,
+      created: todayStr()
+    };
+    receipts.push(receipt);
+    stockReceiptIds.push(receipt.id);
   }
-  renderStockFiles();
+  await saveReceiptsValue();
+  renderStockReceipts();
 }
 
 // Серийный номер уникален для всех позиций — и на складе, и в архиве.
@@ -2497,7 +2566,8 @@ async function saveStockItem() {
       related: stockRelated.slice(),
       warranty: normalizeWarranty(document.getElementById('sWarranty').value.trim(), date),
       checkText: document.getElementById('sCheckText').value.trim(),
-      files: stockFiles.slice(),
+      receiptIds: stockReceiptIds.slice(),
+      files: [],
       archived: stockEditId
         ? !!(stock.find(x => x.id === stockEditId) || {}).archived
         : stockArchiveView
