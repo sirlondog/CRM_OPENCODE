@@ -1257,7 +1257,7 @@ function toggleOrderSection(btn) {
 
 function setOrderSectionsCollapsed(collapsed) {
   document.querySelectorAll('#modalOverlay .form-section').forEach(sec => {
-    sec.classList.toggle('collapsed', !!collapsed);
+    sec.classList.toggle('collapsed', collapsed !== false);
   });
 }
 
@@ -2099,6 +2099,7 @@ function applyOrderDraftPayload(p) {
   if (document.getElementById('fStatus')) document.getElementById('fStatus').value = p.status || 'Согласование';
   if (typeof renderCommentList === 'function') renderCommentList(p.comment || '');
   if (typeof renderConfigBlocks === 'function') renderConfigBlocks(p.config || null);
+  if (typeof setOrderSectionsCollapsed === 'function') setOrderSectionsCollapsed(true);
 }
 function tryRestoreOrderDraft(isNew) {
   try {
@@ -2164,7 +2165,7 @@ function openOrderCard(id) {
   renderCommentList(o.comment || '');
   renderConfigBlocks(normalizeConfigBlocks(o.config));
   document.getElementById('fStatus').value = o.status || 'Согласование';
-  setOrderSectionsCollapsed(false);
+  setOrderSectionsCollapsed(true);
   document.getElementById('modalOverlay').classList.add('open');
   bindOrderDraftAutosave();
   tryRestoreOrderDraft(false);
