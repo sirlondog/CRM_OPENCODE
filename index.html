@@ -624,7 +624,7 @@
       <summary>Чеки</summary>
       <label class="stock-file-label" for="receiptFileInput">Загрузить чек</label>
       <input id="receiptFileInput" type="file" multiple accept="image/*,.pdf" onchange="addReceiptFiles(this.files)">
-      <div class="stock-hint">Один чек можно отметить у нескольких позиций</div>
+      <div class="stock-hint">Имя чека — дата загрузки и номер. Один чек можно отметить у нескольких позиций</div>
       <div class="receipt-picker" id="sReceiptPicker"></div>
     </details>
 
@@ -893,6 +893,8 @@ async function loadAll() {
   if (migrateStockFilesToReceipts()) {
     await Promise.all([saveReceiptsValue(), saveStockValue()]);
   }
+  // Приводим имена чеков к виду ДД.ММ.ГГГГ_номер.
+  if (normalizeReceiptNames()) await saveReceiptsValue();
 }
 
 function parseArchiveDates(v) {
@@ -2105,6 +2107,44 @@ function receiptDataKey(f) {
   return hash + '_' + data.length;
 }
 
+// Имя чека: ДД.ММ.ГГГГ_номер.ext. Номер — счётчик чеков, загруженных в этот день.
+function receiptDateLabel(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  return m ? m[3] + '.' + m[2] + '.' + m[1] : String(iso || todayStr());
+}
+function receiptExtension(name) {
+  const s = String(name || '');
+  const i = s.lastIndexOf('.');
+  if (i <= 0 || i === s.length - 1) return '';
+  const ext = s.slice(i).replace(/[^a-zA-Z0-9.]/g, '').slice(0, 10);
+  return /^\.[a-zA-Z0-9]{1,9}$/.test(ext) ? ext : '';
+}
+function nextReceiptName(iso, original, excludeId) {
+  const prefix = receiptDateLabel(iso) + '_';
+  const re = new RegExp('^' + prefix.replace(/\./g, '\\.') + '(\\d+)(?:\\.[a-zA-Z0-9]{1,9})?$');
+  let n = 1;
+  receipts.forEach(r => {
+    if (excludeId != null && r.id === excludeId) return;
+    const m = re.exec(String(r && r.name || ''));
+    if (m) n = Math.max(n, Number(m[1]) + 1);
+  });
+  return prefix + n + receiptExtension(original);
+}
+function isDateBasedReceiptName(name) {
+  return /^\d{2}\.\d{2}\.\d{4}_\d+(?:\.[a-zA-Z0-9]{1,9})?$/.test(String(name || ''));
+}
+// Старые чеки получают то же понятное имя, что и новые.
+function normalizeReceiptNames() {
+  let changed = false;
+  receipts.forEach(r => {
+    if (!r || r.nameNormalized || isDateBasedReceiptName(r.name)) return;
+    r.name = nextReceiptName(r.created || todayStr(), r.origName || r.name, r.id);
+    r.nameNormalized = true;
+    changed = true;
+  });
+  return changed;
+}
+
 // Перенос старых вложений из позиций в общий список чеков.
 function migrateStockFilesToReceipts() {
   let changed = false;
@@ -2558,7 +2598,8 @@ function renderStockReceipts() {
         (stockReceiptIds.indexOf(r.id) >= 0 ? 'checked' : '') +
         ' onchange="toggleStockReceipt(' + i + ',this.checked)"> ' +
         '<a href="data:' + esc(r.mime) + ';base64,' + r.data + '" download="' + esc(r.name) + '"' +
-        ' title="Открыть чек">' + esc(r.name) + '</a>' +
+        ' title="Открыть чек' + (r.origName ? ' · было: ' + esc(r.origName) : '') + '">' +
+        esc(r.name) + '</a>' +
         '<span class="stock-file-size">' + Math.round((r.size || 0) / 1024) + ' КБ</span></label>'
       ).join('')
     : '<div class="stock-rel-empty">Чеки ещё не загружены</div>';
@@ -2572,9 +2613,7 @@ function toggleStockReceipt(i, on) {
 }
 
 function uniqueReceiptFileName(original) {
-  const clean = String(original || 'chek').trim().replace(/[\\/:*?"<>|]/g, '_') || 'chek';
-  return todayStr().replace(/-/g, '') + '_' +
-    String(receipts.length + 1).padStart(2, '0') + '_' + clean;
+  return nextReceiptName(todayStr(), original);
 }
 
 async function addReceiptFiles(list) {
