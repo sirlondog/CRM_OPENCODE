@@ -1,0 +1,51 @@
+name: Deploy CRM to hosting
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload index.html to crm.star-comp.ru via SFTP
+        env:
+          SFTP_HOST: ${{ secrets.SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.SFTP_PORT }}
+          SFTP_USER: ${{ secrets.SFTP_USER }}
+          SFTP_PASS: ${{ secrets.SFTP_PASS }}
+          SFTP_TARGET: ${{ secrets.SFTP_TARGET }}
+        run: |
+          python3 -m pip install --quiet paramiko
+          python3 - <<'PY'
+          import os
+          import paramiko
+
+          host = os.environ['SFTP_HOST']
+          port = int(os.environ.get('SFTP_PORT') or 22)
+          user = os.environ['SFTP_USER']
+          password = os.environ['SFTP_PASS']
+          target = os.environ['SFTP_TARGET'].rstrip('/')
+
+          client = paramiko.SSHClient()
+          client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+          client.connect(host, port=port, username=user, password=password, timeout=30)
+          sftp = client.open_sftp()
+
+          remote = target + '/index.html'
+          tmp = remote + '.deploy-tmp'
+          sftp.put('hosting/index.html', tmp)
+          sftp.rename(tmp, remote)
+          try:
+              sftp.chmod(remote, 0o644)
+          except Exception:
+              pass
+
+          sftp.close()
+          client.close()
+          print('Deployed hosting/index.html to ' + remote)
+          PY
