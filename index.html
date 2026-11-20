@@ -274,7 +274,11 @@
 
   .comment-add-row { display:flex; gap:8px; margin-top:10px; }
   .comment-add-row input { flex:1; min-width:0; }
-  .comment-add-btn { flex:0 0 auto; padding:9px 12px; white-space:nowrap; }
+  .comment-add-btn {
+    flex:0 0 auto; padding:10px 14px; border:none; border-radius:8px;
+    font-family:inherit; font-size:14px; font-weight:500; cursor:pointer;
+    white-space:nowrap; transition:.15s;
+  }
   .comment-list { display:flex; flex-direction:column; gap:6px; margin-top:10px; max-height:220px; overflow:auto; }
   .comment-item { border:1px solid var(--border-soft); border-radius:8px; padding:8px 10px; background:var(--surface-2); font-size:13px; line-height:1.45; }
   .comment-item-meta { color:var(--text-muted); font-size:11px; font-family:var(--mono); margin-bottom:3px; }
@@ -706,7 +710,7 @@
         <div class="comment-add-row">
           <input id="fCommentInput" type="text" autocomplete="off" placeholder="Новый комментарий…"
                  onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderComment();}">
-          <button type="button" class="btn-save comment-add-btn" onclick="addOrderComment()">Добавить комментарий</button>
+          <button type="button" class="comment-add-btn btn-save" onclick="addOrderComment()">Добавить комментарий</button>
         </div>
         <div id="commentList" class="comment-list"></div>
       </div>
