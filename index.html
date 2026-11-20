@@ -529,7 +529,7 @@
           <div class="dash-value" id="dashProfit">0 ₽</div>
         </div>
       </div>
-      <div class="dash-note">Прибыль = сумма выбранных термопаст MX в закрытых заказах за выбранный месяц. Отказы не учитываются.</div>
+      <div class="dash-note">Прибыль = сумма стоимости термопаст (MX или указанной вручную) в закрытых заказах за выбранный месяц. Отказы не учитываются.</div>
     </div>
 
     <div class="card" id="mainCard">
@@ -1391,20 +1391,36 @@ function buildConfigTableInto(tbody, savedList, onChange) {
     let cost = null;
 
     if (line.thermo) {
-      // Термопаста: фиксированные позиции с фиксированной ценой
+      // Термопаста: фиксированные позиции + стоимость вручную
       let html = '<option value="">— не выбрано —</option>';
       html += '<option value="none">Не нужно</option>';
       line.thermo.forEach(([n, p]) => {
         html += '<option value="' + esc(n) + '" data-price="' + p + '">' + esc(n) + '</option>';
       });
+      html += '<option value="manual">Указать вручную</option>';
       sel.innerHTML = html;
+
+      const manualSaved = saved && (saved.manual || saved.name === 'Указать вручную');
       if (saved && saved.skipped) sel.value = 'none';
+      else if (manualSaved) sel.value = 'manual';
       else if (saved && saved.name) sel.value = saved.name;
-      tdCost.textContent = '—';
-      tdCost.style.textAlign = 'center';
-      tdCost.style.color = 'var(--text-muted)';
+
+      cost = document.createElement('input');
+      cost.type = 'number';
+      cost.className = 'config-cost';
+      cost.min = '0';
+      cost.step = '1';
+      cost.placeholder = 'Сумма, ₽';
+      cost.title = 'Прибавочная стоимость термопасты';
+      cost.style.display = (sel.value === 'manual') ? '' : 'none';
+      if (manualSaved && saved.price) cost.value = saved.price;
+      sel.addEventListener('change', () => {
+        cost.style.display = (sel.value === 'manual') ? '' : 'none';
+        if (sel.value === 'manual') cost.focus();
+      });
+      tdCost.appendChild(cost);
     } else {
-      const cost = document.createElement('input');
+      cost = document.createElement('input');
       cost.type = 'number';
       cost.className = 'config-cost';
       cost.min = '0';
@@ -1461,7 +1477,9 @@ function updateBlockSum(blockEl) {
     if (!sel.value) { allFilled = false; return; }
     if (sel.value === 'none') return; // «Не нужно» — на сумму не влияет
     if (tr.dataset.thermo) {
-      sum += Number(sel.selectedOptions[0].dataset.price || 0);
+      sum += (sel.value === 'manual')
+        ? rowCost(tr)
+        : Number(sel.selectedOptions[0].dataset.price || 0);
       return;
     }
     sum += rowCost(tr);
@@ -1585,6 +1603,8 @@ function collectBlockItems(tbody) {
     if (line.thermo) {
       if (val === 'none') {
         out.push({ line: line.label, category: line.label, name: 'Не нужно', price: 0, skipped: true });
+      } else if (val === 'manual') {
+        out.push({ line: line.label, category: line.label, name: 'Указать вручную', price: rowCost(tr), qty: 1, manual: true });
       } else {
         out.push({ line: line.label, category: line.label, name: val, price: Number(sel.selectedOptions[0].dataset.price || 0), qty: 1 });
       }
