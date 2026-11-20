@@ -42,6 +42,11 @@ function needAuth() {
     if (empty($_SESSION['user'])) fail('Не авторизован', 401);
     return $_SESSION['user'];
 }
+function needAdmin() {
+    $u = needAuth();
+    if ($u !== 'admin') fail('Недостаточно прав', 403);
+    return $u;
+}
 function strval0($v) {
     return $v === null ? '' : (string)$v;
 }
@@ -300,7 +305,6 @@ switch ($action) {
         if ($text !== '') {
             $dir = debugLogDir();
             $file = $dir . '/' . date('Y-m-d') . '.log';
-            // Если файл стал слишком большим, оставляем только последние 2 МБ.
             if (file_exists($file) && filesize($file) > 5 * 1024 * 1024) {
                 $tail = substr(file_get_contents($file), -2 * 1024 * 1024);
                 @file_put_contents($file, "[старые записи обрезаны]\n" . $tail, LOCK_EX);
@@ -324,6 +328,84 @@ switch ($action) {
         }
         rsort($days);
         out(['ok' => true, 'day' => $day, 'days' => $days, 'text' => $text]);
+
+    // ---------- РАСХОДЫ ----------
+    case 'expenses_list':
+        needAdmin();
+        $rows = [];
+        $q = $pdo->query('SELECT id, dt, category, amount, note, created_at FROM expenses ORDER BY dt DESC, id DESC');
+        foreach ($q->fetchAll() as $r) {
+            $rows[] = [
+                'id' => (int)$r['id'],
+                'dt' => (string)$r['dt'],
+                'category' => (string)$r['category'],
+                'amount' => (float)$r['amount'],
+                'note' => strval0($r['note']),
+                'created_at' => isset($r['created_at']) ? (string)$r['created_at'] : null,
+            ];
+        }
+        out(['ok' => true, 'expenses' => $rows]);
+
+    case 'expenses_add':
+        needAdmin();
+        $in = input();
+        $dt = trim(strval0($in['dt'] ?? ''));
+        $category = trim(strval0($in['category'] ?? ''));
+        $amount = (float)($in['amount'] ?? 0);
+        $note = trim(strval0($in['note'] ?? ''));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dt)) fail('Укажите дату');
+        if ($category === '') fail('Укажите категорию');
+        if ($amount <= 0) fail('Укажите сумму');
+        $st = $pdo->prepare('INSERT INTO expenses (dt, category, amount, note) VALUES (?,?,?,?)');
+        $st->execute([$dt, $category, $amount, $note]);
+        $id = (int)$pdo->lastInsertId();
+        $st = $pdo->prepare('SELECT id, dt, category, amount, note, created_at FROM expenses WHERE id = ?');
+        $st->execute([$id]);
+        $r = $st->fetch();
+        out(['ok' => true, 'expense' => [
+            'id' => (int)$r['id'],
+            'dt' => (string)$r['dt'],
+            'category' => (string)$r['category'],
+            'amount' => (float)$r['amount'],
+            'note' => strval0($r['note']),
+            'created_at' => isset($r['created_at']) ? (string)$r['created_at'] : null,
+        ]]);
+
+    case 'expenses_update':
+        needAdmin();
+        $in = input();
+        $id = (int)($in['id'] ?? 0);
+        if (!$id) fail('Не указан id');
+        $dt = trim(strval0($in['dt'] ?? ''));
+        $category = trim(strval0($in['category'] ?? ''));
+        $amount = (float)($in['amount'] ?? 0);
+        $note = trim(strval0($in['note'] ?? ''));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dt)) fail('Укажите дату');
+        if ($category === '') fail('Укажите категорию');
+        if ($amount <= 0) fail('Укажите сумму');
+        $st = $pdo->prepare('UPDATE expenses SET dt=?, category=?, amount=?, note=? WHERE id=?');
+        $st->execute([$dt, $category, $amount, $note, $id]);
+        $st = $pdo->prepare('SELECT id, dt, category, amount, note, created_at FROM expenses WHERE id = ?');
+        $st->execute([$id]);
+        $r = $st->fetch();
+        if (!$r) fail('Не найдено', 404);
+        out(['ok' => true, 'expense' => [
+            'id' => (int)$r['id'],
+            'dt' => (string)$r['dt'],
+            'category' => (string)$r['category'],
+            'amount' => (float)$r['amount'],
+            'note' => strval0($r['note']),
+            'created_at' => isset($r['created_at']) ? (string)$r['created_at'] : null,
+        ]]);
+
+    case 'expenses_delete':
+        needAdmin();
+        $in = input();
+        $id = (int)($in['id'] ?? 0);
+        if (!$id) fail('Не указан id');
+        $st = $pdo->prepare('DELETE FROM expenses WHERE id = ?');
+        $st->execute([$id]);
+        out(['ok' => true]);
 
     default:
         fail('Неизвестное действие', 404);

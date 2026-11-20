@@ -17,7 +17,7 @@ GitHub Pages (`https://sirlondog.github.io/CRM_OPENCODE/`) нужен тольк
 
 Одна база — MySQL на хостинге. К ней обращается `api.php`, который лежит рядом с `index.html` на `crm.star-comp.ru`.
 
-Данные склада и чеков хранятся в таблице `settings` (ключи `stock_items`, `stock_receipts`, `archive_dates`), заказы — в `orders`, детали — в `parts`.
+Данные склада и чеков хранятся в таблице `settings` (ключи `stock_items`, `stock_receipts`, `archive_dates`), заказы — в `orders`, детали — в `parts`, расходы — в таблице `expenses`.
 
 Для защиты от одновременного редактирования заказа двумя пользователями в `orders` должна быть колонка `updated_at` (TIMESTAMP/DATETIME, обновляется при сохранении). Если колонки нет, добавьте, например:
 
@@ -25,7 +25,18 @@ GitHub Pages (`https://sirlondog.github.io/CRM_OPENCODE/`) нужен тольк
 ALTER TABLE orders ADD COLUMN updated_at DATETIME NULL DEFAULT NULL;
 ```
 
-При редактировании старых строк без значения конфликт по версии не блокирует первое сохранение после миграции (логика на сервере учитывает `NULL`).
+Таблица расходов (выполнить один раз):
+
+```sql
+CREATE TABLE IF NOT EXISTS expenses (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  dt DATE NOT NULL,
+  category VARCHAR(100) NOT NULL,
+  amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  note VARCHAR(500) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
 
 Резервная копия БД создаётся на сервере вне публичной папки:
 
