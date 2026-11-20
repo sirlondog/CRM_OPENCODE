@@ -522,6 +522,7 @@
         <button class="tab-btn" id="tabParts" onclick="switchTab('parts')">Железо</button>
         <button class="tab-btn" id="tabStock" style="display:none" onclick="switchTab('stock')">Склад</button>
         <button class="tab-btn" id="tabDashboard" style="display:none" onclick="switchTab('dashboard')">Дашборд</button>
+        <button class="tab-btn" id="tabExpenses" style="display:none" onclick="switchTab('expenses')">Расходы</button>
         <button class="btn-add" id="btnAddPart" style="display:none" onclick="openPartModal()"><span class="btn-part-full">+ Добавить деталь</span><span class="btn-part-plus">+</span></button>
       </div>
       <div style="display:flex; align-items:center; gap:16px;">
@@ -1348,9 +1349,12 @@ function switchTab(tab) {
   document.getElementById('tabParts').classList.toggle('active', tab === 'parts');
   document.getElementById('tabStock').classList.toggle('active', tab === 'stock');
   document.getElementById('tabDashboard').classList.toggle('active', tab === 'dashboard');
+  const te = document.getElementById('tabExpenses');
+  if (te) te.classList.toggle('active', tab === 'expenses');
   const isParts = tab === 'parts';
   const isStock = tab === 'stock' && isAdmin();
   const isDash = tab === 'dashboard' && isAdmin();
+  const isExpenses = tab === 'expenses' && isAdmin();
   document.getElementById('partFilter').style.display = isParts ? 'inline-block' : 'none';
   document.getElementById('partSearch').style.display = isParts ? 'inline-block' : 'none';
   const isOrdersView = (tab === 'orders' || tab === 'archive');
@@ -1365,14 +1369,20 @@ function switchTab(tab) {
   document.getElementById('stockViewActive').classList.toggle('active', !stockArchiveView);
   document.getElementById('stockViewArchive').classList.toggle('active', stockArchiveView);
   document.getElementById('dashboardView').style.display = isDash ? 'block' : 'none';
-  document.getElementById('mainCard').style.display = isDash ? 'none' : '';
-  document.getElementById('stats').style.display = (isStock || isDash) ? 'none' : '';
+  const ev = document.getElementById('expensesView');
+  if (ev) ev.style.display = isExpenses ? 'block' : 'none';
+  document.getElementById('mainCard').style.display = (isDash || isExpenses) ? 'none' : '';
+  document.getElementById('stats').style.display = (isStock || isDash || isExpenses) ? 'none' : '';
   if (!isStock) {
     stockSelected.clear(); stockArchiveView = false;
     document.getElementById('stockSearch').value = '';
     hideStockSearchSuggest();
   }
-  render();
+  if (isExpenses) {
+    loadExpensesIfAdmin().then(function(){ renderExpenses(); });
+  } else {
+    render();
+  }
 }
 
 // ================= ОТРИСОВКА =================
@@ -1738,6 +1748,79 @@ function fillDashMonths(keep) {
   sel.innerHTML = list.map(k => '<option value="' + k + '">' + dashMonthLabel(k) + '</option>').join('');
   sel.value = (keep && list.includes(keep)) ? keep : list[0];
 }
+
+async function loadExpensesIfAdmin() {
+  if (!isAdmin()) { expenses = []; return; }
+  try {
+    const d = await api('expenses_list');
+    expenses = d.expenses || [];
+  } catch (e) {
+    console.warn('loadExpensesIfAdmin', e);
+    expenses = [];
+  }
+}
+function renderExpenses() {
+  const tbody = document.getElementById('expensesBody');
+  if (!tbody) return;
+  if (!isAdmin()) { tbody.innerHTML = '<tr><td colspan="5">Недоступно</td></tr>'; return; }
+  if (!expenses.length) { tbody.innerHTML = '<tr><td colspan="5">Расходов пока нет</td></tr>'; return; }
+  tbody.innerHTML = expenses.map(e => '<tr>' +
+    '<td>' + esc(fmtDate(e.dt)) + '</td>' +
+    '<td>' + esc(e.category || '') + '</td>' +
+    '<td>' + Number(e.amount || 0).toLocaleString('ru-RU') + ' ₽</td>' +
+    '<td>' + esc(e.note || '') + '</td>' +
+    '<td><button type="button" class="btn-small" onclick="editExpense(' + e.id + ')">Изм.</button> ' +
+    '<button type="button" class="btn-small" style="margin-left:6px;" onclick="deleteExpense(' + e.id + ')">✕</button></td>' +
+    '</tr>').join('');
+}
+function editExpense(id) {
+  const ex = (expenses || []).find(x => Number(x.id) === Number(id));
+  if (!ex) return;
+  document.getElementById('expEditId').value = ex.id;
+  document.getElementById('expDate').value = ex.dt || new Date().toISOString().slice(0,10);
+  const cat = document.getElementById('expCategory');
+  if (cat) cat.value = ex.category || 'ЗП Игорь';
+  document.getElementById('expAmount').value = ex.amount != null ? ex.amount : '';
+  document.getElementById('expNote').value = ex.note || '';
+}
+async function saveExpense() {
+  const idEl = document.getElementById('expEditId');
+  const id = idEl ? idEl.value : '';
+  const dt = document.getElementById('expDate') ? document.getElementById('expDate').value : '';
+  const catEl = document.getElementById('expCategory');
+  const category = catEl ? catEl.value : '';
+  const amtEl = document.getElementById('expAmount');
+  const amount = parseFloat(amtEl ? amtEl.value : '');
+  const noteEl = document.getElementById('expNote');
+  const note = noteEl ? noteEl.value.trim() : '';
+  if (!dt) { alert('Укажите дату'); return; }
+  if (!category) { alert('Укажите категорию'); return; }
+  if (!(amount > 0)) { alert('Укажите сумму больше 0'); return; }
+  try {
+    if (id) {
+      await api('expenses_update', { id: Number(id), dt, category, amount, note });
+    } else {
+      await api('expenses_add', { dt, category, amount, note });
+    }
+    if (idEl) idEl.value = '';
+    if (document.getElementById('expDate')) document.getElementById('expDate').value = new Date().toISOString().slice(0,10);
+    if (amtEl) amtEl.value = '';
+    if (noteEl) noteEl.value = '';
+    await loadExpensesIfAdmin();
+    renderExpenses();
+    if (typeof renderDashboard === 'function') renderDashboard();
+  } catch (e) { alert(e.message || 'Ошибка'); }
+}
+async function deleteExpense(id) {
+  if (!confirm('Удалить расход?')) return;
+  try {
+    await api('expenses_delete', { id: Number(id) });
+    await loadExpensesIfAdmin();
+    renderExpenses();
+    if (typeof renderDashboard === 'function') renderDashboard();
+  } catch (e) { alert(e.message || 'Ошибка'); }
+}
+
 function renderDashboard() {
   if (!isAdmin()) return;
   const sel = document.getElementById('dashMonth');
@@ -1748,6 +1831,12 @@ function renderDashboard() {
   document.getElementById('dashOrders').textContent = list.length;
   const profit = list.reduce((s, o) => s + dashOrderProfit(o), 0);
   document.getElementById('dashProfit').textContent = profit.toLocaleString('ru-RU') + ' ₽';
+  const monthExpenses = (expenses || []).filter(e => dashMonthKey(e.dt) === key);
+  const expensesSum = monthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const expEl = document.getElementById('dashExpenses');
+  if (expEl) expEl.textContent = expensesSum.toLocaleString('ru-RU') + ' ₽';
+  const netEl = document.getElementById('dashNet');
+  if (netEl) netEl.textContent = (profit - expensesSum).toLocaleString('ru-RU') + ' ₽';
 }
 
 // старый формат (плоский список позиций) → новый (блоки конфигураций)
@@ -2470,6 +2559,8 @@ function updateAdminUI() {
   const on = isAdmin();
   document.getElementById('tabStock').style.display = on ? '' : 'none';
   document.getElementById('tabDashboard').style.display = on ? '' : 'none';
+  const te = document.getElementById('tabExpenses');
+  if (te) te.style.display = on ? '' : 'none';
   if (!on) document.getElementById('stockActions').style.display = 'none';
   const isOrdersView = (currentTab === 'orders' || currentTab === 'archive');
   const isParts = currentTab === 'parts';
@@ -2480,7 +2571,7 @@ function updateAdminUI() {
   if (btnAddPartH) btnAddPartH.style.display = (on && isParts) ? 'inline-flex' : 'none';
   const btnAddStockH = document.getElementById('btnAddStockHeader');
   if (btnAddStockH) btnAddStockH.style.display = (on && isStock && !stockArchiveView) ? 'inline-flex' : 'none';
-  if (!on && (currentTab === 'stock' || currentTab === 'dashboard')) switchTab('orders');
+  if (!on && (currentTab === 'stock' || currentTab === 'dashboard' || currentTab === 'expenses')) switchTab('orders');
 }
 
 function todayStr() {
