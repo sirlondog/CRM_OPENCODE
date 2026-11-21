@@ -559,7 +559,9 @@
     .config-table select, .config-table input {
       width: 100%; box-sizing: border-box; font-size: 16px; min-height: 40px;
     }
-    .config-table .config-part { margin-top: 2px; }
+    .config-table .config-part { margin-top: 2px; max-width: none; }
+    .config-table .config-cost { width: 100%; }
+    .config-combo { width: 100%; min-width: 0; max-width: none; }
     .config-combo-btn, .config-combo-search { font-size: 16px; min-height: 40px; }
     .config-combo-menu { max-height: 55vh; }
   }
