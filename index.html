@@ -183,6 +183,8 @@
     outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(62,207,142,.12);
   }
   .config-cost::placeholder { color: var(--text-muted); }
+  .config-cost { -moz-appearance: textfield; appearance: textfield; }
+  .config-cost::-webkit-inner-spin-button, .config-cost::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   /* Поиск модели прямо в выпадающем списке конфигурации */
   .form-section[data-section="config"] { overflow: visible; }
   .config-part-cell { position: relative; }
