@@ -366,6 +366,8 @@
     width: 640px; max-width: 92vw; max-height: 90vh; overflow-y: auto;
     box-shadow: 0 24px 80px rgba(0,0,0,.6);
   }
+  /* Карточка заказа шире: в конфигурации есть поиск по железу и цена */
+  .modal-order { width: 960px; max-width: 94vw; }
   .modal h2 { font-size: 17px; margin-bottom: 18px; font-weight: 600; }
   .modal label { display: block; font-size: 12px; margin: 12px 0 5px; color: var(--text-light); }
   .modal input, .modal select, .modal textarea {
@@ -529,6 +531,7 @@
     .modal { padding: 20px 16px; }
     /* поле дата не вылезает за экран: модалка на всю ширину, дата сжимается */
     .modal { width: calc(100vw - 16px); max-width: calc(100vw - 16px); }
+    .modal-order { width: calc(100vw - 16px); max-width: calc(100vw - 16px); }
     .modal input, .modal select, .modal textarea { min-width: 0; }
     .modal input[type="date"] {
       min-width: 0; width: 100%;
@@ -796,7 +799,7 @@
 
 <!-- ============ МОДАЛКА ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ ============ -->
 <div class="modal-overlay" id="modalOverlay">
-  <div class="modal">
+  <div class="modal modal-order">
     <h2 id="modalTitle">Новый заказ</h2>
 
     <div class="form-section" data-section="main">
