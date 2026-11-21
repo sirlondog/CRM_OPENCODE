@@ -7,8 +7,10 @@
 // недоступны для JavaScript и не отправляются с чужих сайтов.
 $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+$sessionLifetime = 60 * 60 * 24 * 30;
+ini_set('session.gc_maxlifetime', (string)$sessionLifetime);
 session_set_cookie_params([
-    'lifetime' => 0,
+    'lifetime' => $sessionLifetime,
     'path'     => '/',
     'secure'   => $isHttps,
     'httponly' => true,

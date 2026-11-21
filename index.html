@@ -567,9 +567,9 @@
     <h1>CRM-STARCOMP</h1>
     <div class="sub">Вход в систему</div>
     <label for="loginEmail">Логин</label>
-    <input id="loginEmail" type="text" placeholder="логин или email" autocomplete="username">
+    <input id="loginEmail" type="text" placeholder="логин или email" autocomplete="username" onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
     <label for="loginPass">Пароль</label>
-    <input id="loginPass" type="password" placeholder="••••••" autocomplete="current-password">
+    <input id="loginPass" type="password" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
     <div class="login-error" id="loginError"></div>
     <button onclick="doLogin()">Войти</button>
   </div>
