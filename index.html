@@ -178,6 +178,42 @@
     outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(62,207,142,.12);
   }
   .config-cost::placeholder { color: var(--text-muted); }
+  /* Поиск модели прямо в выпадающем списке конфигурации */
+  .form-section[data-section="config"] { overflow: visible; }
+  .config-part-cell { position: relative; }
+  .config-combo { position: relative; }
+  .config-combo-btn {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface-2); color: var(--text); font-family: inherit; font-size: 13px;
+    cursor: pointer; text-align: left; transition: border-color .15s, box-shadow .15s;
+  }
+  .config-combo-btn:hover { border-color: var(--green); }
+  .config-combo.open .config-combo-btn { border-color: var(--green); box-shadow: 0 0 0 3px rgba(62,207,142,.12); }
+  .config-combo-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .config-combo-arrow { color: var(--text-muted); flex: 0 0 auto; }
+  .config-combo-menu {
+    display: none; position: absolute; z-index: 5000; left: 0; right: 0; top: calc(100% + 4px);
+    max-height: 300px; overflow: auto; padding: 6px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 14px 40px rgba(0,0,0,.55);
+  }
+  .config-combo.open .config-combo-menu { display: block; }
+  .config-combo-search {
+    width: 100%; box-sizing: border-box; margin-bottom: 6px; padding: 8px 10px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--bg);
+    color: var(--text); font-family: inherit; font-size: 13px;
+  }
+  .config-combo-search:focus {
+    outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(62,207,142,.12);
+  }
+  .config-combo-item {
+    display: block; width: 100%; padding: 7px 9px; border: 0; border-radius: 6px;
+    background: transparent; color: var(--text); font-family: inherit; font-size: 13px;
+    text-align: left; cursor: pointer;
+  }
+  .config-combo-item:hover, .config-combo-item.active { background: var(--surface-3); color: var(--green); }
+  .config-combo-empty { padding: 8px 9px; color: var(--text-muted); font-size: 12px; }
   .config-sum {
     font-weight: 600; font-size: 13px; color: var(--text);
     margin-top: 10px; min-height: 18px; font-family: var(--mono);
@@ -515,6 +551,8 @@
       width: 100%; box-sizing: border-box; font-size: 16px; min-height: 40px;
     }
     .config-table .config-part { margin-top: 2px; }
+    .config-combo-btn, .config-combo-search { font-size: 16px; min-height: 40px; }
+    .config-combo-menu { max-height: 55vh; }
   }
 </style>
 </head>
@@ -1767,8 +1805,8 @@ async function deletePart(id) {
 // Это защищает от случайного закрытия и потери введённых данных.
 
 // ================= КОНФИГУРАЦИЯ В ЗАКАЗЕ (СТАТИЧНАЯ ТАБЛИЦА) =================
-// Первый столбец — фиксированные строки, второй — деталь из базы «Железо»,
-// третий — стоимость вручную. Внизу сумма всех стоимостей.
+// Первый столбец — фиксированные строки, второй — деталь из базы «Железо» с поиском,
+// третий — стоимость из каталога (можно переопределить вручную). Внизу сумма.
 const CONFIG_LINES = [
   { label: 'Процессор',          cats: ['Процессор'] },
   { label: 'Видеокарта',         cats: ['Видеокарта'] },
@@ -1983,6 +2021,17 @@ function itemsTotal(items) {
   return (items || []).reduce((s, c) => s + (c.price || 0) * (c.qty || 1), 0);
 }
 
+// Закрываем все открытые списки выбора детали, кроме переданного.
+function closeConfigCombos(except) {
+  document.querySelectorAll('.config-combo.open').forEach(el => {
+    if (el !== except) el.classList.remove('open');
+  });
+}
+document.addEventListener('click', e => {
+  if (!e.target || !e.target.closest) return;
+  if (!e.target.closest('.config-combo')) closeConfigCombos();
+});
+
 // сборка строк таблицы конфигурации в указанный tbody
 function buildConfigTableInto(tbody, savedList, onChange) {
   savedList = savedList || [];
@@ -2038,40 +2087,180 @@ function buildConfigTableInto(tbody, savedList, onChange) {
         cost.style.display = (sel.value === 'manual') ? '' : 'none';
         if (sel.value === 'manual') cost.focus();
       });
+      tdSel.appendChild(sel);
       tdCost.appendChild(cost);
     } else {
+      // Железо: селект остаётся в DOM для совместимости, но выбираем через поиск.
+      tdSel.classList.add('config-part-cell');
+      sel.classList.add('config-part-native');
+      sel.hidden = true;
+
       cost = document.createElement('input');
       cost.type = 'number';
       cost.className = 'config-cost';
       cost.min = '0';
       cost.step = '1';
       cost.placeholder = '—';
+      cost.title = 'Цена из вкладки «Железо». Если изменить вручную, в сумме учтётся ручное значение.';
+
+      const combo = document.createElement('div');
+      combo.className = 'config-combo';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'config-combo-btn';
+      const valueEl = document.createElement('span');
+      valueEl.className = 'config-combo-value';
+      valueEl.textContent = '— не выбрано —';
+      const arrow = document.createElement('span');
+      arrow.className = 'config-combo-arrow';
+      arrow.textContent = '▾';
+      btn.appendChild(valueEl);
+      btn.appendChild(arrow);
+
+      const menu = document.createElement('div');
+      menu.className = 'config-combo-menu';
+      const search = document.createElement('input');
+      search.type = 'text';
+      search.className = 'config-combo-search';
+      search.placeholder = '🔍 Поиск по железу…';
+      search.setAttribute('aria-label', 'Поиск модели из вкладки Железо');
+      const list = document.createElement('div');
+      list.className = 'config-combo-list';
+      menu.appendChild(search);
+      menu.appendChild(list);
+      combo.appendChild(btn);
+      combo.appendChild(menu);
+
+      let optionList = [];
+
+      function updateButton() {
+        const opt = sel.selectedOptions[0];
+        valueEl.textContent = opt ? opt.textContent : '— не выбрано —';
+        valueEl.title = valueEl.textContent;
+      }
+
+      function applyCostFromSelect(force) {
+        // Ручное значение всегда приоритетнее цены из каталога.
+        if (!force && cost.dataset.manual === '1') return;
+        const opt = sel.selectedOptions[0];
+        const price = Number(opt && opt.dataset.price) || 0;
+        cost.value = price ? String(price) : '';
+        delete cost.dataset.manual;
+      }
+
+      function renderMenu(query) {
+        const q = String(query || '').trim().toLowerCase();
+        let shown;
+        if (!q) {
+          shown = optionList;
+        } else {
+          const starts = [], rest = [];
+          optionList.forEach(o => {
+            if (!o.value) return;
+            if (o.search.indexOf(q) === 0) starts.push(o);
+            else if (o.search.indexOf(q) >= 0) rest.push(o);
+          });
+          shown = starts.concat(rest);
+        }
+        if (!shown.length) {
+          list.innerHTML = '<div class="config-combo-empty">Ничего не найдено</div>';
+          return;
+        }
+        list.innerHTML = shown.map((o, i) =>
+          '<button type="button" class="config-combo-item' + (q && i === 0 ? ' active' : '') +
+          '" data-value="' + esc(o.value) + '">' + esc(o.label) + '</button>'
+        ).join('');
+      }
+
+      function setValue(value) {
+        sel.value = value;
+        updateButton();
+        applyCostFromSelect(value === '' || value === 'none');
+        closeConfigCombos();
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      }
 
       function fillParts() {
-        const list = parts.filter(p => line.cats.includes(p.category));
+        const available = parts.filter(p => line.cats.includes(p.category));
         let html = '<option value="">— не выбрано —</option>';
         html += '<option value="none">Не нужно</option>';
-        list.forEach(p => {
-          html += '<option value="' + p.id + '">' + esc(p.name) + '</option>';
+        optionList = [
+          { value: '', label: '— не выбрано —', search: '' },
+          { value: 'none', label: 'Не нужно', search: '' }
+        ];
+        available.forEach(p => {
+          html += '<option value="' + esc(p.id) + '" data-price="' + Number(p.price || 0) + '">' + esc(p.name) + '</option>';
+          optionList.push({
+            value: String(p.id),
+            label: p.name,
+            search: String(p.category + ' ' + p.name).toLowerCase()
+          });
         });
         // деталь удалена из каталога после сохранения заказа — показываем снимок
-        if (saved && saved.partId && saved.partId !== 'none' && !list.some(p => String(p.id) === String(saved.partId))) {
-          html += '<option value="' + esc(saved.partId) + '">' + esc(saved.name) + ' (нет в каталоге)</option>';
+        if (saved && saved.partId && saved.partId !== 'none' && !available.some(p => String(p.id) === String(saved.partId))) {
+          html += '<option value="' + esc(saved.partId) + '" data-price="' + Number(saved.price || 0) + '">' +
+            esc(saved.name) + ' (нет в каталоге)</option>';
+          optionList.push({
+            value: String(saved.partId),
+            label: saved.name + ' (нет в каталоге)',
+            search: String(saved.name).toLowerCase()
+          });
         }
         sel.innerHTML = html;
         if (saved && saved.skipped) sel.value = 'none';
         else if (saved && saved.partId) sel.value = String(saved.partId);
+        updateButton();
       }
 
-      if (saved && saved.price) cost.value = saved.price;
+      btn.addEventListener('click', () => {
+        const wasOpen = combo.classList.contains('open');
+        closeConfigCombos();
+        if (!wasOpen) {
+          combo.classList.add('open');
+          search.value = '';
+          renderMenu('');
+          search.focus();
+        }
+      });
+
+      search.addEventListener('input', () => renderMenu(search.value));
+      search.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          const first = list.querySelector('.config-combo-item');
+          if (first) { e.preventDefault(); first.click(); }
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          closeConfigCombos();
+          btn.focus();
+        }
+      });
+      list.addEventListener('click', e => {
+        const item = e.target.closest && e.target.closest('.config-combo-item');
+        if (item) setValue(item.dataset.value);
+      });
+
+      cost.oninput = () => {
+        if (String(cost.value).trim() !== '') cost.dataset.manual = '1';
+        else delete cost.dataset.manual;
+        onChange();
+      };
+
       fillParts();
-      cost.oninput = onChange;
+      if (saved && saved.price !== undefined && saved.price !== null && String(saved.price).trim() !== '') {
+        cost.value = saved.price;
+        const opt = sel.selectedOptions[0];
+        if (Number(saved.price) !== (Number(opt && opt.dataset.price) || 0)) cost.dataset.manual = '1';
+      } else {
+        applyCostFromSelect(true);
+      }
+
+      tdSel.appendChild(combo);
+      tdSel.appendChild(sel);
       tdCost.appendChild(cost);
     }
 
     sel.onchange = onChange;
 
-    tdSel.appendChild(sel);
     tr.appendChild(tdLabel);
     tr.appendChild(tdSel);
     tr.appendChild(tdCost);
