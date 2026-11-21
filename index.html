@@ -463,6 +463,12 @@
   .exp-btn:hover { background: var(--surface-3); color: var(--text); }
   .exp-btn.danger:hover { color: #ff6b6b; }
   .exp-empty { text-align: center; color: var(--text-muted); padding: 28px 14px; }
+  .exp-plus { color: var(--green); }
+  .exp-tag-income {
+    display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+    padding: 2px 6px; border-radius: 4px; background: rgba(62,207,142,.15); color: var(--green);
+    margin-right: 4px; vertical-align: middle;
+  }
   .stock-check { width: auto !important; margin: 0; accent-color: var(--green); }
   .stock-hint { color: var(--text-muted); font-size: 12px; margin-top: 4px; min-height: 15px; }
   .stock-more { margin-top: 8px; border: 1px solid var(--border-soft); border-radius: 8px; padding: 5px 10px; background: var(--bg); }
@@ -1806,6 +1812,39 @@ function dashThermoValue(item) {
   const found = fixed.find(t => String(t[0]).toUpperCase() === name);
   return Number(item.price) || (found ? found[1] : 0);
 }
+function dashOrderThermoItems(o) {
+  const blocks = normalizeConfigBlocks(o.config);
+  if (!blocks) return [];
+  const active = blocks.filter(b => b.selected !== false);
+  const list = active.length ? active : blocks;
+  const out = [];
+  list.forEach(b => (b.items || []).forEach(it => {
+    const v = dashThermoValue(it);
+    if (v > 0) out.push({ name: String(it.name || '').trim(), value: v });
+  }));
+  return out;
+}
+function dashIsoDate(date) {
+  const s = String(date || '').trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[0];
+  m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+  if (m) return m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0');
+  return '';
+}
+function thermoIncomeRows() {
+  const rows = [];
+  dashClosedOrders().forEach(o => {
+    dashOrderThermoItems(o).forEach(t => rows.push({
+      dt: dashIsoDate(o.date),
+      category: 'Термопаста',
+      amount: t.value,
+      note: 'Заказ ' + (o.number || '') + ' · ' + t.name,
+      income: true
+    }));
+  });
+  return rows;
+}
 function dashOrderProfit(o) {
   const blocks = normalizeConfigBlocks(o.config);
   if (!blocks) return 0;
@@ -1841,16 +1880,29 @@ function renderExpenses() {
   const tbody = document.getElementById('expensesBody');
   if (!tbody) return;
   if (!isAdmin()) { tbody.innerHTML = '<tr><td colspan="5">Недоступно</td></tr>'; return; }
-  if (expensesLoadError) { tbody.innerHTML = '<tr><td colspan="5">' + esc(expensesLoadError) + '</td></tr>'; return; }
-  if (!expenses.length) { tbody.innerHTML = '<tr><td colspan="5" class="exp-empty">Расходов пока нет</td></tr>'; return; }
-  tbody.innerHTML = expenses.map(e => '<tr>' +
-    '<td>' + esc(fmtDate(e.dt)) + '</td>' +
-    '<td>' + esc(e.category || '') + '</td>' +
-    '<td class="exp-amount">' + Number(e.amount || 0).toLocaleString('ru-RU') + ' ₽</td>' +
-    '<td class="exp-note">' + esc(e.note || '') + '</td>' +
-    '<td><button type="button" class="exp-btn" onclick="editExpense(' + e.id + ')">Изм.</button>' +
-    '<button type="button" class="exp-btn danger" onclick="deleteExpense(' + e.id + ')">✕</button></td>' +
-    '</tr>').join('');
+  const errHtml = expensesLoadError ? '<tr><td colspan="5">' + esc(expensesLoadError) + '</td></tr>' : '';
+  const rows = expenses.map(e => Object.assign({}, e, { income: false })).concat(thermoIncomeRows());
+  rows.sort((x, y) => String(y.dt || '').localeCompare(String(x.dt || '')));
+  if (!rows.length) { tbody.innerHTML = errHtml || '<tr><td colspan="5" class="exp-empty">Расходов пока нет</td></tr>'; return; }
+  tbody.innerHTML = errHtml + rows.map(e => {
+    if (e.income) {
+      return '<tr class="exp-income-row">' +
+        '<td>' + esc(fmtDate(e.dt)) + '</td>' +
+        '<td><span class="exp-tag-income">Доход</span> ' + esc(e.category) + '</td>' +
+        '<td class="exp-amount exp-plus">+ ' + Number(e.amount || 0).toLocaleString('ru-RU') + ' ₽</td>' +
+        '<td class="exp-note">' + esc(e.note || '') + '</td>' +
+        '<td></td>' +
+        '</tr>';
+    }
+    return '<tr>' +
+      '<td>' + esc(fmtDate(e.dt)) + '</td>' +
+      '<td>' + esc(e.category || '') + '</td>' +
+      '<td class="exp-amount">' + Number(e.amount || 0).toLocaleString('ru-RU') + ' ₽</td>' +
+      '<td class="exp-note">' + esc(e.note || '') + '</td>' +
+      '<td><button type="button" class="exp-btn" onclick="editExpense(' + e.id + ')">Изм.</button>' +
+      '<button type="button" class="exp-btn danger" onclick="deleteExpense(' + e.id + ')">✕</button></td>' +
+      '</tr>';
+  }).join('');
 }
 function editExpense(id) {
   const ex = (expenses || []).find(x => Number(x.id) === Number(id));
