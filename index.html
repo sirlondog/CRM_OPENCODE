@@ -2836,6 +2836,10 @@ async function _saveOrder() {
 // Окно заказа закрывается ТОЛЬКО кнопкой «Закрыть» внизу окна —
 // клик мимо окна и Escape не закрывают его, чтобы случайно не потерять введённые данные.
 // (клик по фону игнорируется, обработчик не ставим)
+document.addEventListener('wheel', e => {
+  const t = e.target;
+  if (t && t.classList && t.classList.contains('config-cost') && document.activeElement === t) e.preventDefault();
+}, { passive: false });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeStatusMenu(); closePartModal(); }
 });
