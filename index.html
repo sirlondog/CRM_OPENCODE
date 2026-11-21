@@ -166,7 +166,13 @@
   }
   .config-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
   .config-table tr:last-child td { border-bottom: none; }
-  .config-line { font-size: 13px; color: var(--text); white-space: nowrap; width: 34%; }
+  .config-line { font-size: 13px; color: var(--text); white-space: nowrap; width: 1%; padding-right: 10px; }
+  @media (min-width: 641px) {
+    .config-table td:nth-child(2) { width: 100%; }
+    .config-table td:nth-child(3) { width: 140px; }
+    .config-combo { width: 0; min-width: 100%; }
+    .config-combo-value { min-width: 0; flex: 1 1 auto; }
+  }
   .config-table .config-part { width: 100%; min-width: 0; }
   .config-table .config-cost { width: 100%; min-width: 0; }
   .config-table select, .config-table input {
