@@ -1839,8 +1839,10 @@ function thermoIncomeRows() {
       dt: dashIsoDate(o.date),
       category: 'Термопаста',
       amount: t.value,
-      note: 'Заказ ' + (o.number || '') + ' · ' + t.name,
-      income: true
+      note: t.name,
+      income: true,
+      orderId: o.id,
+      orderNumber: o.number || ''
     }));
   });
   return rows;
@@ -1890,7 +1892,7 @@ function renderExpenses() {
         '<td>' + esc(fmtDate(e.dt)) + '</td>' +
         '<td><span class="exp-tag-income">Доход</span> ' + esc(e.category) + '</td>' +
         '<td class="exp-amount exp-plus">+ ' + Number(e.amount || 0).toLocaleString('ru-RU') + ' ₽</td>' +
-        '<td class="exp-note">' + esc(e.note || '') + '</td>' +
+        '<td class="exp-note"><a class="order-num" title="Открыть карточку заказа" onclick="openOrderCard(' + Number(e.orderId) + ')">Заказ ' + esc(e.orderNumber) + '</a> · ' + esc(e.note || '') + '</td>' +
         '<td></td>' +
         '</tr>';
     }
