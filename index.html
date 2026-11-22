@@ -855,8 +855,7 @@
     <div class="form-section" data-section="comment">
       <button type="button" class="section-toggle" onclick="toggleOrderSection(this)">Комментарий</button>
       <div class="section-body">
-        <label for="fComment">Комментарий</label>
-        <textarea id="fComment" name="comment" autocomplete="off" placeholder="Сборка ПК: RTX 4070, Ryzen 7..."></textarea>
+        <textarea id="fComment" name="comment" hidden></textarea>
         <div class="comment-add-row">
           <input id="fCommentInput" type="text" autocomplete="off" placeholder="Новый комментарий…"
                  onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderComment();}">
@@ -2505,6 +2504,7 @@ function scheduleOrderDraftSave() {
 }
 function clearOrderDraft() {
   try {
+    if (_orderDraftTimer) { clearTimeout(_orderDraftTimer); _orderDraftTimer = null; }
     localStorage.removeItem(orderDraftKey());
   } catch (e) {}
 }
@@ -2829,8 +2829,8 @@ async function _saveOrder() {
 
   originalOrderComment = commentFinal || '';
   editingOrderUpdatedAt = saved.updated_at || null;
-  editingId = null;
   clearOrderDraft();
+  editingId = null;
   closeModal();
   if (currentTab !== 'orders') switchTab('orders'); else render();
 }
