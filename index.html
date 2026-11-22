@@ -325,7 +325,9 @@
     white-space:nowrap; transition:.15s;
   }
   .comment-list { display:flex; flex-direction:column; gap:6px; margin-top:10px; max-height:220px; overflow:auto; }
-  .comment-item { border:1px solid var(--border-soft); border-radius:8px; padding:8px 10px; background:var(--surface-2); font-size:13px; line-height:1.45; }
+  .comment-item { position:relative; border:1px solid var(--border-soft); border-radius:8px; padding:8px 10px; background:var(--surface-2); font-size:13px; line-height:1.45; }
+  .comment-del { position:absolute; top:4px; right:6px; background:none; border:none; color:var(--text-muted); font-size:16px; line-height:1; cursor:pointer; padding:2px 4px; font-family:inherit; }
+  .comment-del:hover { color:#ff8f8f; }
   .comment-item-meta { color:var(--text-muted); font-size:11px; font-family:var(--mono); margin-bottom:3px; }
   .comment-empty { color:var(--text-muted); font-size:12px; }
 
@@ -1432,12 +1434,27 @@ function renderCommentList(text) {
     box.innerHTML = '<div class="comment-empty">Комментариев пока нет. Добавьте первый ниже.</div>';
     return;
   }
-  box.innerHTML = items.slice().reverse().map(it =>
+  box.innerHTML = items.map((it, i) => ({ it, i })).reverse().map(({ it, i }) =>
     '<div class="comment-item">' +
+      (isAdmin() ? '<button type="button" class="comment-del" title="Удалить комментарий" onclick="deleteOrderComment(' + i + ')">×</button>' : '') +
       (it.meta ? '<div class="comment-item-meta">' + esc(it.meta) + '</div>' : '') +
       '<div>' + esc(it.text).replace(/\n/g, '<br>') + '</div>' +
     '</div>'
   ).join('');
+}
+
+function deleteOrderComment(idx) {
+  if (!isAdmin()) return;
+  const area = document.getElementById('fComment');
+  const items = parseOrderComments(area.value);
+  if (!items[idx]) return;
+  if (!confirm('Удалить комментарий?')) return;
+  items.splice(idx, 1);
+  const text = items.map(it => (it.meta ? '[' + it.meta + ']\n' : '') + it.text).join('\n\n');
+  area.value = text;
+  originalOrderComment = text;
+  renderCommentList(text);
+  scheduleOrderDraftSave();
 }
 
 async function addOrderComment() {
