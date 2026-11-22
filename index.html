@@ -2209,18 +2209,28 @@ function buildConfigTableInto(tbody, savedList, onChange) {
       function setValue(value) {
         sel.value = value;
         updateButton();
-        applyCostFromSelect(value === '' || value === 'none');
+        if (value === 'manual') {
+          if (cost.dataset.manual !== '1') cost.value = '';
+          cost.dataset.manual = '1';
+          cost.placeholder = 'Сумма, ₽';
+        } else {
+          applyCostFromSelect(value === '' || value === 'none');
+          cost.placeholder = '—';
+        }
         closeConfigCombos();
         sel.dispatchEvent(new Event('change', { bubbles: true }));
+        if (value === 'manual') cost.focus();
       }
 
       function fillParts() {
         const available = parts.filter(p => line.cats.includes(p.category));
         let html = '<option value="">— не выбрано —</option>';
         html += '<option value="none">Не нужно</option>';
+        html += '<option value="manual">Указать вручную</option>';
         optionList = [
           { value: '', label: '— не выбрано —', search: '' },
-          { value: 'none', label: 'Не нужно', search: '' }
+          { value: 'none', label: 'Не нужно', search: '' },
+          { value: 'manual', label: 'Указать вручную', search: '' }
         ];
         available.forEach(p => {
           html += '<option value="' + esc(p.id) + '" data-price="' + Number(p.price || 0) + '">' + esc(p.name) + '</option>';
@@ -2243,6 +2253,7 @@ function buildConfigTableInto(tbody, savedList, onChange) {
         sel.innerHTML = html;
         if (saved && saved.skipped) sel.value = 'none';
         else if (saved && saved.partId) sel.value = String(saved.partId);
+        else if (saved && saved.manual) sel.value = 'manual';
         updateButton();
       }
 
@@ -2456,6 +2467,10 @@ function collectBlockItems(tbody) {
 
     if (val === 'none') {
       out.push({ line: line.label, category: line.label, name: 'Не нужно', price: 0, skipped: true });
+      return;
+    }
+    if (val === 'manual') {
+      out.push({ line: line.label, category: line.label, name: 'Указать вручную', price: rowCost(tr), qty: 1, manual: true });
       return;
     }
     const opt = sel.selectedOptions[0];
