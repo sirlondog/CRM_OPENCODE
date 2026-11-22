@@ -223,6 +223,12 @@
   }
   .config-combo-item:hover, .config-combo-item.active { background: var(--surface-3); color: var(--green); }
   .config-combo-empty { padding: 8px 9px; color: var(--text-muted); font-size: 12px; }
+  .config-name-input {
+    display: block; width: 100%; box-sizing: border-box; margin-top: 6px; padding: 7px 10px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2);
+    color: var(--text); font-family: inherit; font-size: 13px;
+  }
+  .config-name-input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(62,207,142,.12); }
   .config-sum {
     font-weight: 600; font-size: 13px; color: var(--text);
     margin-top: 10px; min-height: 18px; font-family: var(--mono);
@@ -2162,8 +2168,15 @@ function buildConfigTableInto(tbody, savedList, onChange) {
       list.className = 'config-combo-list';
       menu.appendChild(search);
       menu.appendChild(list);
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'config-name-input';
+      nameInput.placeholder = 'Введите модель детали';
+      nameInput.setAttribute('aria-label', 'Модель детали вручную');
+      nameInput.style.display = 'none';
       combo.appendChild(btn);
       combo.appendChild(menu);
+      combo.appendChild(nameInput);
 
       let optionList = [];
 
@@ -2171,6 +2184,7 @@ function buildConfigTableInto(tbody, savedList, onChange) {
         const opt = sel.selectedOptions[0];
         valueEl.textContent = opt ? opt.textContent : '— не выбрано —';
         valueEl.title = valueEl.textContent;
+        nameInput.style.display = sel.value === 'manual' ? '' : 'none';
       }
 
       function applyCostFromSelect(force) {
@@ -2219,7 +2233,7 @@ function buildConfigTableInto(tbody, savedList, onChange) {
         }
         closeConfigCombos();
         sel.dispatchEvent(new Event('change', { bubbles: true }));
-        if (value === 'manual') cost.focus();
+        if (value === 'manual') nameInput.focus();
       }
 
       function fillParts() {
@@ -2253,7 +2267,10 @@ function buildConfigTableInto(tbody, savedList, onChange) {
         sel.innerHTML = html;
         if (saved && saved.skipped) sel.value = 'none';
         else if (saved && saved.partId) sel.value = String(saved.partId);
-        else if (saved && saved.manual) sel.value = 'manual';
+        else if (saved && saved.manual) {
+          sel.value = 'manual';
+          nameInput.value = saved.name && saved.name !== 'Указать вручную' ? saved.name : '';
+        }
         updateButton();
       }
 
@@ -2470,7 +2487,9 @@ function collectBlockItems(tbody) {
       return;
     }
     if (val === 'manual') {
-      out.push({ line: line.label, category: line.label, name: 'Указать вручную', price: rowCost(tr), qty: 1, manual: true });
+      const nameEl = tr.querySelector('.config-name-input');
+      const typed = nameEl ? nameEl.value.trim() : '';
+      out.push({ line: line.label, category: line.label, name: typed || 'Указать вручную', price: rowCost(tr), qty: 1, manual: true });
       return;
     }
     const opt = sel.selectedOptions[0];
