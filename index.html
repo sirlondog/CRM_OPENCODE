@@ -155,6 +155,8 @@
   .cust-name { font-weight: 500; }
   .cust-phone { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
   .cust-login { font-size: 12px; color: var(--text-light); margin-top: 2px; font-style: italic; }
+  a.cust-tel { display: inline-block; color: var(--green); text-decoration: none; padding: 4px 0; }
+  a.cust-tel:hover { text-decoration: underline; }
   .order-cost { font-family: var(--mono); font-size: 13px; white-space: nowrap; color: var(--text); }
 
   /* ===== КОНФИГУРАЦИЯ В ЗАКАЗЕ (СТАТИЧНАЯ ТАБЛИЦА) ===== */
@@ -1593,7 +1595,7 @@ function render() {
         '<div class="order-date">' + esc(fmtDate(o.date)) + '</div>' +
         '<div class="order-status-line">' + statusBadge(o.status, o.id) + '</div></td>' +
       '<td><div class="cust-name">' + esc(o.name) + '</div>' +
-        '<div class="cust-phone">' + esc(o.phone) + '</div>' +
+        (telDigits(o.phone) ? '<a class="cust-phone cust-tel" href="tel:' + telDigits(o.phone) + '">' + esc(o.phone) + '</a>' : '<div class="cust-phone">' + esc(o.phone) + '</div>') +
         (o.login ? '<div class="cust-login">@' + esc(o.login) + '</div>' : '') + '</td>' +
       '<td class="order-cost">' + (total > 0 ? fmtMoney(total) : '—') + '</td>' +
       '<td class="comment-cell" title="' + esc(o.comment) + '">' + esc(o.comment) + '</td>' +
@@ -1678,6 +1680,10 @@ function fallbackCopy(text, cb) {
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function telDigits(s) {
+  const d = String(s ?? '').replace(/[^\d+]/g, '');
+  return /\d{5,}/.test(d) ? d : '';
 }
 function fmtDate(d) {
   if (!d) return '';
