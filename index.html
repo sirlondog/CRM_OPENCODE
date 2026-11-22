@@ -1490,7 +1490,7 @@ function switchTab(tab) {
   document.getElementById('partFilter').style.display = isParts ? 'inline-block' : 'none';
   document.getElementById('partSearch').style.display = isParts ? 'inline-block' : 'none';
   const isOrdersView = (tab === 'orders' || tab === 'archive');
-  const showAddOrderHeader = isAdmin() && isOrdersView;
+  const showAddOrderHeader = isOrdersView;
   const btnAddH = document.getElementById('btnAddOrderHeader');
   if (btnAddH) btnAddH.style.display = showAddOrderHeader ? 'inline-flex' : 'none';
   const btnAddPartH = document.getElementById('btnAddPartHeader');
@@ -2906,7 +2906,7 @@ function updateAdminUI() {
   const isParts = currentTab === 'parts';
   const isStock = currentTab === 'stock';
   const btnAddH = document.getElementById('btnAddOrderHeader');
-  if (btnAddH) btnAddH.style.display = (on && isOrdersView) ? 'inline-flex' : 'none';
+  if (btnAddH) btnAddH.style.display = isOrdersView ? 'inline-flex' : 'none';
   const btnAddPartH = document.getElementById('btnAddPartHeader');
   if (btnAddPartH) btnAddPartH.style.display = (on && isParts) ? 'inline-flex' : 'none';
   const btnAddStockH = document.getElementById('btnAddStockHeader');
