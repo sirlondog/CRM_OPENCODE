@@ -1247,6 +1247,18 @@ function load(key, def) {
 
 async function loadAll() {
   dbgLog('INFO', 'Загрузка данных с сервера…');
+  if (isAdmin()) {
+    try {
+      const m = await api('receipts_migrate', {});
+      if (m.migrated) {
+        dbgLog('OK', 'Файлы чеков перенесены из базы в папку на диске: ' + m.migrated);
+        await refreshCache();
+      }
+    } catch (e) {
+      dbgLog('ERROR', 'Перенос файлов чеков: ' + e.message);
+      alert('Не удалось перенести файлы чеков: ' + e.message);
+    }
+  }
   const [o, p, s] = await Promise.all([
     sb.from('orders').select('*').order('id'),
     sb.from('parts').select('*').order('id'),
@@ -3506,7 +3518,7 @@ function renderStockReceipts() {
         '<label class="stock-rel-item"><input type="checkbox" ' +
         (stockReceiptIds.indexOf(r.id) >= 0 ? 'checked' : '') +
         ' onchange="toggleStockReceipt(' + i + ',this.checked)"> ' +
-        '<a href="data:' + esc(r.mime) + ';base64,' + r.data + '" download="' + esc(r.name) + '"' +
+        '<a href="' + API_URL + '?a=receipt_file&id=' + encodeURIComponent(String(r.id)) + '" download="' + esc(r.name) + '"' +
         ' title="Открыть чек' + (r.origName ? ' · было: ' + esc(r.origName) : '') + '">' +
         esc(r.name) + '</a>' +
         '<span class="stock-file-size">' + Math.round((r.size || 0) / 1024) + ' КБ</span></label>'
@@ -3539,25 +3551,22 @@ async function addReceiptFiles(list) {
       r.onerror = reject;
       r.readAsDataURL(file);
     });
-    const probe = { size: file.size, data: data };
-    const exists = receipts.find(x => receiptDataKey(x) === receiptDataKey(probe));
-    if (exists) {
-      if (stockReceiptIds.indexOf(exists.id) < 0) stockReceiptIds.push(exists.id);
-      continue;
+    try {
+      const res = await api('receipt_upload', {
+        id: Date.now() + Math.random(),
+        name: uniqueReceiptFileName(file.name),
+        origName: file.name,
+        mime: file.type || 'application/octet-stream',
+        created: todayStr(),
+        data: data
+      });
+      const receipt = res.receipt;
+      if (!receipts.some(x => x.id === receipt.id)) receipts.push(receipt);
+      if (stockReceiptIds.indexOf(receipt.id) < 0) stockReceiptIds.push(receipt.id);
+    } catch (e) {
+      alert('Не удалось загрузить «' + file.name + '»: ' + e.message);
     }
-    const receipt = {
-      id: Date.now() + Math.random(),
-      name: uniqueReceiptFileName(file.name),
-      origName: file.name,
-      mime: file.type || 'application/octet-stream',
-      size: file.size,
-      data: data,
-      created: todayStr()
-    };
-    receipts.push(receipt);
-    stockReceiptIds.push(receipt.id);
   }
-  await saveReceiptsValue();
   dbgLog('OK', 'Загрузка чеков: добавлено ' + (receipts.length - before) +
     ', всего чеков ' + receipts.length);
   renderStockReceipts();

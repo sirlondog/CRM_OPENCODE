@@ -66,6 +66,89 @@ function debugLogDir() {
     return $dir;
 }
 
+// Файлы чеков лежат на диске вне публичной папки сайта (можно переопределить
+// константой CRM_FILES_DIR в db.php). В базе — только сведения о файле.
+function receiptsDir() {
+    $dir = defined('CRM_FILES_DIR') ? CRM_FILES_DIR : dirname(dirname(__DIR__)) . '/crm_files';
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    $ht = $dir . '/.htaccess';
+    if (!file_exists($ht)) {
+        @file_put_contents($ht,
+            "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n" .
+            "<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n");
+    }
+    return $dir;
+}
+function settingGet($pdo, $k) {
+    $st = $pdo->prepare('SELECT v FROM settings WHERE k = ?');
+    $st->execute([$k]);
+    $v = $st->fetchColumn();
+    return $v === false ? null : (string)$v;
+}
+function settingSet($pdo, $k, $v) {
+    $st = $pdo->prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
+    $st->execute([$k, $v]);
+}
+function itemsFromRaw($raw) {
+    if ($raw === null || $raw === '') return [];
+    $o = json_decode($raw, true);
+    if (!is_array($o)) return [];
+    if (isset($o['items']) && is_array($o['items'])) return array_values($o['items']);
+    return array_values($o);
+}
+function itemsJson($items) {
+    $json = json_encode(['items' => array_values($items)], JSON_UNESCAPED_UNICODE);
+    if ($json === false) fail('Не удалось сохранить список файлов', 500);
+    return $json;
+}
+function receiptMime($m) {
+    $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+    return in_array($m, $allowed, true) ? $m : 'application/octet-stream';
+}
+// Сохраняет файл на диск (одинаковое содержимое — один файл) и добавляет запись в $list.
+function receiptSave(&$list, $dir, $bin, $f) {
+    $sha = hash('sha256', $bin);
+    foreach ($list as $it) {
+        if (isset($it['sha256']) && $it['sha256'] === $sha) return $it;
+    }
+    $origName = (string)($f['origName'] ?? '');
+    $ext = preg_match('/\.[a-zA-Z0-9]{1,9}$/', $origName, $m) ? strtolower($m[0]) : '';
+    $created = (string)($f['created'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $created)) $created = date('Y-m-d');
+    $rel = substr($created, 0, 4) . '/' . substr($created, 5, 2) . '/' . $sha . $ext;
+    $path = $dir . '/' . $rel;
+    if (!is_file($path)) {
+        @mkdir(dirname($path), 0700, true);
+        $tmp = $path . '.part' . bin2hex(random_bytes(4));
+        if (file_put_contents($tmp, $bin) !== strlen($bin) || !rename($tmp, $path)) {
+            @unlink($tmp);
+            fail('Не удалось сохранить файл на диск', 500);
+        }
+    }
+    $id = (float)($f['id'] ?? 0);
+    if ($id <= 0) $id = (float)(microtime(true) * 1000) + mt_rand(0, 999999) / 1000000;
+    $name = (string)($f['name'] ?? '');
+    if ($name === '') $name = $origName !== '' ? $origName : 'chek' . $ext;
+    $meta = [
+        'id'       => $id,
+        'name'     => $name,
+        'origName' => $origName,
+        'mime'     => receiptMime((string)($f['mime'] ?? '')),
+        'size'     => strlen($bin),
+        'created'  => $created,
+        'sha256'   => $sha,
+        'path'     => $rel,
+    ];
+    $list[] = $meta;
+    return $meta;
+}
+function receiptFindById($list, $id) {
+    foreach ($list as $it) {
+        if (isset($it['id']) && (float)$it['id'] === (float)$id) return $it;
+    }
+    return null;
+}
+
 function orderRow($pdo, $id) {
     $st = $pdo->prepare('SELECT * FROM orders WHERE id = ?');
     $st->execute([$id]);
@@ -408,6 +491,101 @@ switch ($action) {
         $st = $pdo->prepare('DELETE FROM expenses WHERE id = ?');
         $st->execute([$id]);
         out(['ok' => true]);
+
+    // ---------- ЧЕКИ И ФАЙЛЫ СКЛАДА (только admin) ----------
+    case 'receipt_upload':
+        needAdmin();
+        $in = input();
+        $bin = base64_decode(strval0($in['data'] ?? ''), true);
+        if ($bin === false || $bin === '') fail('Файл пустой или повреждён');
+        if (strlen($bin) > 2 * 1024 * 1024) fail('Файл больше 2 МБ');
+        $dir = receiptsDir();
+        $list = itemsFromRaw(settingGet($pdo, 'stock_receipts'));
+        $meta = receiptSave($list, $dir, $bin, [
+            'id'       => $in['id'] ?? 0,
+            'name'     => strval0($in['name'] ?? ''),
+            'origName' => strval0($in['origName'] ?? ''),
+            'mime'     => strval0($in['mime'] ?? ''),
+            'created'  => strval0($in['created'] ?? ''),
+        ]);
+        settingSet($pdo, 'stock_receipts', itemsJson($list));
+        out(['ok' => true, 'receipt' => $meta]);
+
+    case 'receipt_file':
+        needAdmin();
+        $list = itemsFromRaw(settingGet($pdo, 'stock_receipts'));
+        $meta = receiptFindById($list, $_GET['id'] ?? 0);
+        if (!$meta || empty($meta['path'])) fail('Файл не найден', 404);
+        $path = receiptsDir() . '/' . $meta['path'];
+        if (!is_file($path)) fail('Файл не найден на диске', 404);
+        $asciiName = preg_replace('/[^\x20-\x7E]|["\\\\]/', '_', (string)$meta['name']);
+        header('Content-Type: ' . $meta['mime']);
+        header('Content-Length: ' . filesize($path));
+        header('Content-Disposition: attachment; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode((string)$meta['name']));
+        header('X-Content-Type-Options: nosniff');
+        readfile($path);
+        exit;
+
+    case 'receipts_migrate':
+        // Однократный перенос: файлы, которые раньше лежали base64 в базе, уходят на диск.
+        needAdmin();
+        $rawR = settingGet($pdo, 'stock_receipts');
+        $rawS = settingGet($pdo, 'stock_items');
+        $receipts = itemsFromRaw($rawR);
+        $stock = itemsFromRaw($rawS);
+        $legacy = false;
+        foreach ($receipts as $r) if (isset($r['data'])) $legacy = true;
+        foreach ($stock as $s) if (!empty($s['files'])) $legacy = true;
+        if (!$legacy) out(['ok' => true, 'migrated' => 0]);
+
+        $dir = receiptsDir();
+        @mkdir($dir . '/backup', 0700, true);
+        $backup = $dir . '/backup/' . date('Ymd_His') . '_settings.json';
+        if (file_put_contents($backup, json_encode(['stock_receipts' => $rawR, 'stock_items' => $rawS], JSON_UNESCAPED_UNICODE)) === false) {
+            fail('Не удалось создать резервную копию перед переносом', 500);
+        }
+
+        $list = [];
+        $pairs = [];
+        $count = 0;
+        foreach ($receipts as $r) {
+            if (!isset($r['data'])) { $list[] = $r; continue; }
+            $bin = base64_decode((string)$r['data'], true);
+            if ($bin === false) fail('Повреждённый чек: ' . ($r['name'] ?? ''), 500);
+            $meta = receiptSave($list, $dir, $bin, $r);
+            $pairs[] = [(float)$r['id'], (float)$meta['id']];
+            $count++;
+        }
+        foreach ($stock as &$s) {
+            $ids = [];
+            foreach (($s['receiptIds'] ?? []) as $rid) {
+                $new = (float)$rid;
+                foreach ($pairs as $p) if ($p[0] === (float)$rid) $new = $p[1];
+                if (!in_array($new, $ids, true)) $ids[] = $new;
+            }
+            if (!empty($s['files'])) {
+                foreach ($s['files'] as $f) {
+                    if (empty($f['data'])) continue;
+                    $bin = base64_decode((string)$f['data'], true);
+                    if ($bin === false) fail('Повреждённый файл в позиции склада', 500);
+                    $meta = receiptSave($list, $dir, $bin, [
+                        'name'     => $f['name'] ?? '',
+                        'origName' => $f['origName'] ?? ($f['name'] ?? ''),
+                        'mime'     => $f['mime'] ?? '',
+                        'created'  => $s['date'] ?? '',
+                    ]);
+                    if (!in_array((float)$meta['id'], $ids, true)) $ids[] = (float)$meta['id'];
+                    $count++;
+                }
+                $s['files'] = [];
+            }
+            $s['receiptIds'] = $ids;
+        }
+        unset($s);
+
+        settingSet($pdo, 'stock_receipts', itemsJson($list));
+        settingSet($pdo, 'stock_items', itemsJson($stock));
+        out(['ok' => true, 'migrated' => $count]);
 
     default:
         fail('Неизвестное действие', 404);
