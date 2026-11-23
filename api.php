@@ -149,6 +149,41 @@ function receiptFindById($list, $id) {
     return null;
 }
 
+// Файлы заказа: папка orders/<номер заказа> внутри папки файлов, список — в settings.order_files.
+function orderFolderName($number) {
+    $safe = trim(preg_replace('/[^\p{L}\p{N}_\- .]+/u', '_', (string)$number), ' .');
+    if ($safe === '') fail('Не указан номер заказа');
+    return $safe;
+}
+function orderFileSafeName($name) {
+    $safe = trim(preg_replace('/[\x00-\x1F\x7F\/\\\\:*?"<>|]+/', '_', (string)$name), " .\t");
+    return $safe === '' ? 'файл' : $safe;
+}
+function orderFileMime($ext) {
+    $map = [
+        'pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
+        'png' => 'image/png', 'webp' => 'image/webp', 'gif' => 'image/gif', 'heic' => 'image/heic',
+        'doc' => 'application/msword',
+        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls' => 'application/vnd.ms-excel',
+        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'txt' => 'text/plain',
+    ];
+    return $map[$ext] ?? null;
+}
+function orderFileUnique($dir, $name) {
+    $ext = pathinfo($name, PATHINFO_EXTENSION);
+    $base = $ext === '' ? $name : substr($name, 0, -(strlen($ext) + 1));
+    $cand = $name;
+    for ($n = 2; file_exists($dir . '/' . $cand); $n++) {
+        $cand = $base . ' (' . $n . ')' . ($ext === '' ? '' : '.' . $ext);
+    }
+    return $cand;
+}
+function orderFilesList($pdo) {
+    return itemsFromRaw(settingGet($pdo, 'order_files'));
+}
+
 function orderRow($pdo, $id) {
     $st = $pdo->prepare('SELECT * FROM orders WHERE id = ?');
     $st->execute([$id]);
@@ -586,6 +621,110 @@ switch ($action) {
         settingSet($pdo, 'stock_receipts', itemsJson($list));
         settingSet($pdo, 'stock_items', itemsJson($stock));
         out(['ok' => true, 'migrated' => $count]);
+
+    // ---------- ФАЙЛЫ ЗАКАЗА ----------
+    case 'order_files_list':
+        needAuth();
+        $in = input();
+        $number = trim(strval0($in['number'] ?? ''));
+        $rows = [];
+        if ($number !== '') {
+            foreach (orderFilesList($pdo) as $x) {
+                if (($x['number'] ?? '') === $number) $rows[] = $x;
+            }
+        }
+        out(['ok' => true, 'files' => $rows]);
+
+    case 'order_file_upload':
+        needAuth();
+        $number = trim(strval0($_POST['number'] ?? ''));
+        $folder = orderFolderName($number);
+        $f = $_FILES['file'] ?? null;
+        if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            fail('Файл не загрузился (возможно, он больше допустимого размера)');
+        }
+        if ($f['size'] > 10 * 1024 * 1024) fail('Файл больше 10 МБ');
+        $name = orderFileSafeName($f['name']);
+        $mime = orderFileMime(strtolower(pathinfo($name, PATHINFO_EXTENSION)));
+        if ($mime === null) fail('Этот тип файла не поддерживается');
+        $dir = receiptsDir() . '/orders/' . $folder;
+        @mkdir($dir, 0700, true);
+        $name = orderFileUnique($dir, $name);
+        if (!move_uploaded_file($f['tmp_name'], $dir . '/' . $name)) fail('Не удалось сохранить файл на диск', 500);
+        $items = orderFilesList($pdo);
+        $item = [
+            'id'      => bin2hex(random_bytes(8)),
+            'number'  => $number,
+            'name'    => $name,
+            'mime'    => $mime,
+            'size'    => (int)$f['size'],
+            'created' => date('Y-m-d'),
+            'path'    => 'orders/' . $folder . '/' . $name,
+        ];
+        $items[] = $item;
+        settingSet($pdo, 'order_files', itemsJson($items));
+        out(['ok' => true, 'file' => $item]);
+
+    case 'order_file':
+        needAuth();
+        $id = (string)($_GET['id'] ?? '');
+        $it = null;
+        foreach (orderFilesList($pdo) as $x) {
+            if (($x['id'] ?? '') === $id) $it = $x;
+        }
+        if (!$it) fail('Файл не найден', 404);
+        $path = receiptsDir() . '/' . $it['path'];
+        if (!is_file($path)) fail('Файл не найден на диске', 404);
+        $asciiName = preg_replace('/[^\x20-\x7E]|["\\\\]/', '_', (string)$it['name']);
+        header('Content-Type: ' . $it['mime']);
+        header('Content-Length: ' . filesize($path));
+        header('Content-Disposition: attachment; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode((string)$it['name']));
+        header('X-Content-Type-Options: nosniff');
+        readfile($path);
+        exit;
+
+    case 'order_file_delete':
+        needAuth();
+        $in = input();
+        $id = strval0($in['id'] ?? '');
+        $keep = [];
+        $gone = null;
+        foreach (orderFilesList($pdo) as $x) {
+            if (($x['id'] ?? '') === $id) $gone = $x;
+            else $keep[] = $x;
+        }
+        if (!$gone) fail('Файл не найден', 404);
+        @unlink(receiptsDir() . '/' . $gone['path']);
+        settingSet($pdo, 'order_files', itemsJson($keep));
+        out(['ok' => true]);
+
+    case 'order_files_move':
+        // Номер заказа изменили — файлы переезжают в папку с новым номером.
+        needAuth();
+        $in = input();
+        $from = trim(strval0($in['from'] ?? ''));
+        $to = trim(strval0($in['to'] ?? ''));
+        if ($from === '' || $to === '' || $from === $to) out(['ok' => true, 'moved' => 0]);
+        $base = receiptsDir() . '/orders';
+        $fromDir = $base . '/' . orderFolderName($from);
+        $toDir = $base . '/' . orderFolderName($to);
+        @mkdir($toDir, 0700, true);
+        $items = orderFilesList($pdo);
+        $moved = 0;
+        foreach ($items as &$x) {
+            if (($x['number'] ?? '') !== $from) continue;
+            $src = receiptsDir() . '/' . $x['path'];
+            $name = orderFileUnique($toDir, $x['name']);
+            if (is_file($src) && !rename($src, $toDir . '/' . $name)) fail('Не удалось перенести файл «' . $x['name'] . '»', 500);
+            $x['number'] = $to;
+            $x['name'] = $name;
+            $x['path'] = 'orders/' . orderFolderName($to) . '/' . $name;
+            $moved++;
+        }
+        unset($x);
+        if ($moved) settingSet($pdo, 'order_files', itemsJson($items));
+        if (is_dir($fromDir) && count(scandir($fromDir)) === 2) @rmdir($fromDir);
+        out(['ok' => true, 'moved' => $moved]);
 
     default:
         fail('Неизвестное действие', 404);

@@ -440,6 +440,11 @@
   .stock-rel-item:hover { background: var(--surface-2); }
   .stock-rel-item input[type="checkbox"] { width: auto !important; margin: 0; accent-color: var(--green); }
   .stock-rel-empty { color: var(--text-muted); font-size: 12px; padding: 8px; }
+  .order-files-folder { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .order-file-list { margin-top: 8px; }
+  .order-file-list .stock-rel-item { cursor: default; }
+  .order-file-list .stock-rel-item a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .order-files-hint { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
   .receipt-picker { max-height: 170px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; padding: 4px; background: var(--bg); }
   .receipt-picker a { color: var(--green); text-decoration: underline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .receipt-picker .stock-file-size { margin-left: auto; white-space: nowrap; }
@@ -872,6 +877,18 @@
           <button type="button" class="comment-add-btn btn-save" onclick="addOrderComment()">Добавить комментарий</button>
         </div>
         <div id="commentList" class="comment-list"></div>
+      </div>
+    </div>
+
+    <div class="form-section" data-section="files">
+      <button type="button" class="section-toggle" onclick="toggleOrderSection(this)">Файлы заказа</button>
+      <div class="section-body">
+        <div id="orderFilesFolder" class="order-files-folder"></div>
+        <input id="orderFileInput" type="file" multiple
+               accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.doc,.docx,.xls,.xlsx,.txt"
+               onchange="uploadOrderFiles(this.files)">
+        <div id="orderFileList" class="order-file-list"></div>
+        <div class="order-files-hint">Договор, гарантийный талон, чеки — сохраняются в папку с номером заказа. Максимум 10 МБ на файл.</div>
       </div>
     </div>
 
@@ -2662,6 +2679,7 @@ function openOrderCard(id) {
   document.getElementById('modalOverlay').classList.add('open');
   bindOrderDraftAutosave();
   tryRestoreOrderDraft(false);
+  loadOrderFiles();
   document.getElementById('fName').focus();
 }
 
@@ -2787,11 +2805,93 @@ function openAddModal() {
   document.getElementById('modalOverlay').classList.add('open');
   bindOrderDraftAutosave();
   tryRestoreOrderDraft(true);
+  loadOrderFiles();
 }
 
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('open');
   editingOrderUpdatedAt = null;
+  orderFilesNumber = '';
+  orderFiles = [];
+}
+
+// ===== Файлы заказа: папка с номером заказа =====
+let orderFilesNumber = '';   // номер, под которым лежат файлы открытого заказа
+let orderFiles = [];
+
+async function loadOrderFiles() {
+  orderFilesNumber = (document.getElementById('fNumber').value || '').trim();
+  orderFiles = [];
+  if (orderFilesNumber) {
+    try {
+      const r = await api('order_files_list', { number: orderFilesNumber });
+      orderFiles = r.files || [];
+    } catch (e) {
+      alert('Не удалось загрузить файлы заказа: ' + e.message);
+    }
+  }
+  renderOrderFiles();
+}
+
+function renderOrderFiles() {
+  document.getElementById('orderFilesFolder').textContent =
+    orderFilesNumber ? 'Папка: заказ №' + orderFilesNumber : 'Сначала укажите номер заказа';
+  const box = document.getElementById('orderFileList');
+  if (!orderFiles.length) {
+    box.innerHTML = '<div class="stock-rel-empty">Файлов пока нет</div>';
+    return;
+  }
+  box.innerHTML = orderFiles.map(f =>
+    '<div class="stock-rel-item">' +
+      '<a href="' + API_URL + '?a=order_file&id=' + encodeURIComponent(f.id) + '" download="' + esc(f.name) + '">' + esc(f.name) + '</a>' +
+      '<span class="stock-file-size">' + Math.round((f.size || 0) / 1024) + ' КБ</span>' +
+      '<button type="button" class="btn-copy" title="Удалить файл" onclick="deleteOrderFile(\'' + esc(f.id) + '\')">🗑</button>' +
+    '</div>'
+  ).join('');
+}
+
+async function uploadOrderFiles(fileList) {
+  const input = document.getElementById('orderFileInput');
+  const n = orderFilesNumber || (document.getElementById('fNumber').value || '').trim();
+  if (!n) {
+    alert('Сначала укажите номер заказа');
+    input.value = '';
+    return;
+  }
+  orderFilesNumber = n;
+  for (const file of Array.from(fileList || [])) {
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Файл «' + file.name + '» больше 10 МБ — пропущен.');
+      continue;
+    }
+    const fd = new FormData();
+    fd.append('number', n);
+    fd.append('file', file);
+    try {
+      const res = await fetch(API_URL + '?a=order_file_upload', { method: 'POST', credentials: 'same-origin', body: fd });
+      const data = await res.json().catch(() => ({ error: 'Сервер вернул неверный ответ' }));
+      if (!res.ok || data.error) throw new Error(data.error || 'Ошибка сервера ' + res.status);
+      orderFiles.push(data.file);
+      dbgLog('OK', 'Файл заказа загружен: ' + file.name);
+    } catch (e) {
+      alert('Не удалось загрузить «' + file.name + '»: ' + e.message);
+    }
+  }
+  input.value = '';
+  renderOrderFiles();
+}
+
+async function deleteOrderFile(id) {
+  const f = orderFiles.find(x => x.id === id);
+  if (!f) return;
+  if (!confirm('Удалить файл «' + f.name + '»?')) return;
+  try {
+    await api('order_file_delete', { id: id });
+    orderFiles = orderFiles.filter(x => x.id !== id);
+    renderOrderFiles();
+  } catch (e) {
+    alert('Ошибка удаления: ' + e.message);
+  }
 }
 
 async function saveOrder() {
@@ -2899,6 +2999,13 @@ async function _saveOrder() {
 
   originalOrderComment = commentFinal || '';
   editingOrderUpdatedAt = saved.updated_at || null;
+  if (orderFilesNumber && orderFilesNumber !== number) {
+    try {
+      await api('order_files_move', { from: orderFilesNumber, to: number });
+    } catch (e) {
+      alert('Заказ сохранён, но файлы не перенесены в папку №' + number + ': ' + e.message);
+    }
+  }
   clearOrderDraft();
   editingId = null;
   closeModal();
