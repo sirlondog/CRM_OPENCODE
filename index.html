@@ -2123,6 +2123,7 @@ function buildConfigTableInto(tbody, savedList, onChange) {
       cost.title = 'Прибавочная стоимость термопасты';
       cost.style.display = (sel.value === 'manual') ? '' : 'none';
       if (manualSaved && saved.price) cost.value = saved.price;
+      cost.oninput = onChange;
       sel.addEventListener('change', () => {
         cost.style.display = (sel.value === 'manual') ? '' : 'none';
         if (sel.value === 'manual') cost.focus();
