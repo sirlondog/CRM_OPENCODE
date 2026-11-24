@@ -394,6 +394,66 @@ switch ($action) {
         }
         out(['ok' => true, 'part' => partRow($pdo, $id)]);
 
+    // ---------- ИМПОРТ ЖЕЛЕЗА ----------
+    // Принимаем список деталей и добавляем только те, которых ещё нет.
+    // duplicate = совпадение названия (без учёта регистра/порядка слов/знаков)
+    // или одной и той же ссылки. Повторный импорт ничего не меняет.
+    case 'parts_import':
+        needAdmin();
+        $in = input();
+        $rows = $in['parts'] ?? [];
+        if (!is_array($rows)) fail('Некорректный список деталей');
+        $dry = !empty($in['dry_run']);
+
+        $normName = function ($s) {
+            $s = strval0($s);
+            $s = function_exists('mb_strtolower') ? mb_strtolower($s, 'UTF-8') : strtolower($s);
+            $s = preg_replace('/[^a-zа-яё0-9+]+/ui', ' ', $s);
+            $words = preg_split('/\s+/u', trim($s), -1, PREG_SPLIT_NO_EMPTY);
+            if (!$words) return '';
+            sort($words, SORT_STRING);
+            return implode(' ', $words);
+        };
+
+        $byName = [];
+        $byLink = [];
+        foreach ($pdo->query('SELECT name, link FROM parts')->fetchAll() as $p) {
+            $nk = $normName($p['name']);
+            if ($nk !== '') $byName[$nk] = true;
+            $lk = trim(strval0($p['link']));
+            if ($lk !== '') $byLink[$lk] = true;
+        }
+
+        $added = 0;
+        $skipped = 0;
+        $sample = [];
+        $ins = $pdo->prepare('INSERT INTO parts (category, name, price, link) VALUES (?,?,?,?)');
+        foreach ($rows as $r) {
+            if (!is_array($r)) { $skipped++; continue; }
+            $category = trim(strval0($r['category'] ?? ''));
+            $name = trim(strval0($r['name'] ?? ''));
+            if ($category === '' || $name === '') { $skipped++; continue; }
+            $price = (float)($r['price'] ?? 0);
+            $link = trim(strval0($r['link'] ?? ''));
+            $nk = $normName($name);
+            $lk = trim($link);
+            if (($nk !== '' && isset($byName[$nk])) || ($lk !== '' && isset($byLink[$lk]))) {
+                $skipped++;
+                continue;
+            }
+            if (!$dry) {
+                $ins->execute([$category, $name, $price, $link]);
+            }
+            if ($nk !== '') $byName[$nk] = true;
+            if ($lk !== '') $byLink[$lk] = true;
+            $added++;
+            if (count($sample) < 15) {
+                $sample[] = ['category' => $category, 'name' => $name, 'price' => $price, 'link' => $link];
+            }
+        }
+        out(['ok' => true, 'added' => $added, 'skipped' => $skipped,
+             'dry_run' => $dry, 'sample' => $sample]);
+
     case 'part_delete':
         needAuth();
         $id = (int)($_GET['id'] ?? ($_POST['id'] ?? 0));

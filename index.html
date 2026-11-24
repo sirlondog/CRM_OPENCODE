@@ -214,6 +214,12 @@
     font-family: inherit; transition: background .15s;
   }
   .btn-add:hover { background: var(--green-hover); }
+  .import-btn {
+    background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+    padding: 7px 13px; font-size: 12px;
+  }
+  .import-btn:hover { background: var(--surface-3, var(--surface-2)); border-color: var(--green); }
+  .import-btn:disabled { opacity: .5; cursor: wait; }
   /* компактная зелёная кнопка «+» для добавления заказа/детали (текст только в подсказке) */
   .btn-part-full { display: none; }
   .btn-part-plus { display: inline; font-size: 16px; line-height: 1; }
@@ -763,6 +769,7 @@
         <button class="tab-btn" id="tabDashboard" style="display:none" onclick="switchTab('dashboard')">Дашборд</button>
         <button class="tab-btn" id="tabExpenses" style="display:none" onclick="switchTab('expenses')">Расходы</button>
         <button class="btn-add" id="btnAddPart" style="display:none" onclick="openPartModal()"><span class="btn-part-full">+ Добавить деталь</span><span class="btn-part-plus">+</span></button>
+        <button class="btn-add import-btn" id="btnImportSiteParts" style="display:none" title="Импортировать базу железа с основного сайта" onclick="importSiteParts()">⇩ Импорт с сайта</button>
       </div>
       <div style="display:flex; align-items:center; gap:16px;">
         <span class="stats" id="stats"></span>
@@ -1726,6 +1733,8 @@ function switchTab(tab) {
   if (btnAddH) btnAddH.style.display = showAddOrderHeader ? 'inline-flex' : 'none';
   const btnAddPartH = document.getElementById('btnAddPartHeader');
   if (btnAddPartH) btnAddPartH.style.display = (isAdmin() && isParts) ? 'inline-flex' : 'none';
+  const btnImport = document.getElementById('btnImportSiteParts');
+  if (btnImport) btnImport.style.display = (isAdmin() && isParts) ? 'inline-flex' : 'none';
   const btnAddStockH = document.getElementById('btnAddStockHeader');
   if (btnAddStockH) btnAddStockH.style.display = (isAdmin() && isStock && !stockArchiveView) ? 'inline-flex' : 'none';
   document.getElementById('stockActions').style.display = isStock ? 'flex' : 'none';
@@ -2012,6 +2021,8 @@ const CATEGORIES = [
 ];
 let partEditId = null;
 
+const SITE_PARTS_RAW = [["Блок питания","1000W DEEPCOOL PN1000D 80+ GOLD"],["Оперативная память","16GB DDR4 3200MHz NETAC SHADOW II WHITE"],["Оперативная память","16GB DDR4 KINGSTON FURY BEAST"],["Оперативная память","16GB DDR4 KINGSTON FURY RGB"],["Оперативная память","16GB DDR4 NETAC SHADOW III"],["Оперативная память","16GB DDR5 ADATA LANCER BLADE RGB"],["Оперативная память","16GB DDR5 G.SKILL TRIDENT Z RGB"],["Оперативная память","16GB DDR5 KINGSTON FURY RGB"],["Блок питания","1ST PLAYER NGDP 1000W 80+ GOLD"],["Блок питания","1STPLAYER NGDP 750W 80+ GOLD"],["Блок питания","1STPLAYER NGDP 850W 80+ GOLD"],["Оперативная память","32GB DDR4 CORSAIR DOMINATOR RGB"],["Оперативная память","32GB DDR4 G.SKILL TRIDENT Z RGB"],["Оперативная память","32GB DDR4 KINGSTON FURY RGB"],["Оперативная память","32GB DDR4 NETAC SHADOW III"],["Оперативная память","32GB DDR5 CORSAIR DOMINATOR RGB"],["Оперативная память","32GB DDR5 CORSAIR VENGEANCE RGB"],["Оперативная память","32GB DDR5 G.SKILL TRIDENT Z RGB"],["Оперативная память","32GB DDR5 G.SKILL TRIDENT Z"],["Оперативная память","32GB DDR5 KINGSTON FURY BEAST"],["Оперативная память","32GB DDR5 KINGSTON FURY RGB"],["Оперативная память","48GB DDR5 KINGSTON FURY RGB"],["Оперативная память","64GB DDR5 ADATA XPG LANCER"],["Блок питания","650W DEEPCOOL PF600X 80+ BRONZE"],["Материнская плата","A520M PRO MSI"],["Видеокарта","AMD RADEON RX 7600 8GB GIGABYTE GAMING"],["Процессор","AMD RYZEN 5 5500"],["Процессор","AMD RYZEN 5 5500X3D"],["Процессор","AMD RYZEN 5 5600X"],["Процессор","AMD RYZEN 5 7500F"],["Процессор","AMD RYZEN 5 9600X"],["Процессор","AMD RYZEN 7 5700X"],["Процессор","AMD RYZEN 7 7700"],["Процессор","AMD RYZEN 7 7800X3D"],["Процессор","AMD RYZEN 7 9800X3D"],["Процессор","AMD RYZEN 9 9900X"],["Процессор","AMD RYZEN 9 9900X3D"],["Процессор","AMD RYZEN 9 9950X"],["Воздушное охлаждение","ARCTIC FREEZER 36"],["Корпус","ARDOR GAMING CF235"],["Корпус","ARDOR GAMING ELEMENT W4"],["Видеокарта","ASROCK AMD RADEON RX 9060 8GB"],["Материнская плата","ASUS TUF B850i NEO WIFI"],["Материнская плата","ASUS TUF GAMING B760M BTF WIFI"],["Жидкостное охлаждение","ASUS TUF GAMING LC II 360 ARGB"],["Материнская плата","ASUS TUF GAMING Z790-PLUS WIFI"],["Видеокарта","ASUS TUF NVIDIA RTX 3080 10GB"],["Материнская плата","B760M-A WIFI MSI PRO"],["Материнская плата","B760M MSI GAMING PLUS WIFI"],["Материнская плата","B840M-P MSI PRO"],["Материнская плата","B850-S WIFI MSI PRO"],["Материнская плата","B850M MSI TOMAHAWK WIFI"],["Материнская плата","B850M-P MSI PRO WIFI"],["Корпус","DEEPCOOL CL660"],["Блок питания","DEEPCOOL 750W SFX 80+ PLATINUM"],["Блок питания","DEEPCOOL PF700X 700W 80+ BRONZE"],["Воздушное охлаждение","DEEPCOOL AG400"],["Воздушное охлаждение","DEEPCOOL AG620 V2"],["Воздушное охлаждение","DEEPCOOL AK500 DIGITAL"],["Корпус","DEEPCOOL CG330"],["Корпус","DEEPCOOL CG380"],["Корпус","DEEPCOOL CG530"],["Жидкостное охлаждение","DEEPCOOL LE360 V2"],["Жидкостное охлаждение","DEEPCOOL LT360 VISION"],["Блок питания","DEEPCOOL PF750D V2 80+ SILVER"],["Блок питания","DEEPCOOL PN1200M 1200W 80+ GOLD"],["Блок питания","DEEPCOOL PQ850G 850W 80+ GOLD"],["Корпус","FORMULA U9 PA"],["Корпус","FORMULA Z4M"],["Видеокарта","GAINWARD NVIDIA RTX 5060 Ti 16GB"],["Жидкостное охлаждение","GEOMETRIC FUTURE ESKIMO PLUS 360"],["Корпус","GEOMETRIC FUTURE MODEL 3"],["Корпус","GEOMETRIC FUTURE MODEL 5"],["Жидкостное охлаждение","ID-COOLING DX360 GDL"],["Воздушное охлаждение","ID-COOLING IS-67-XT"],["Процессор","INTEL CORE i5-12400F"],["Процессор","INTEL CORE i5-13600KF"],["Процессор","INTEL CORE i5-14400F"],["Процессор","INTEL CORE i5-14600KF"],["Процессор","INTEL CORE i7-12700KF"],["Процессор","INTEL CORE i7-13700KF"],["Процессор","INTEL CORE i7-14700KF"],["Процессор","INTEL CORE i9-14900KF"],["Процессор","INTEL CORE ULTRA 9 285K"],["Корпус","JONSBO D300"],["Корпус","JONSBO D34"],["Жидкостное охлаждение","JONSBO TF3-360SCB"],["Воздушное охлаждение","JONSBO TH-240"],["Корпус","JONSBO TK-0"],["Корпус","LIAN LI LANCOOL III"],["Корпус","LIAN LI O11 VISION-M"],["Корпус","LIAN LI VECTOR V100 MINI"],["Корпус","LIAN LI VECTOR V100"],["Материнская плата","MSI A620M-B PRO"],["Материнская плата","MSI B550M PRO-VDH"],["Материнская плата","MSI B650M-P PRO"],["Материнская плата","MSI B760M-A PRO V2"],["Материнская плата","MSI B760M-A PRO WIFI"],["Материнская плата","MSI B760M PROJECT ZERO WIFI"],["Материнская плата","MSI B850 GAMING PLUS WIFI6E"],["Материнская плата","MSI H610M-G PRO"],["Материнская плата","MSI MAG B850 TOMAHAWK MAX WIFI"],["Материнская плата","MSI MAG Z790 TOMAHAWK WIFI"],["Материнская плата","MSI MORTAR B760M WIFI"],["Материнская плата","MSI MPG X870E CARBON WIFI"],["Материнская плата","MSI Z890 GAMING PLUS WIFI"],["Видеокарта","NVDIA RTX 5060 Ti 16GB GAMING WHITE"],["Видеокарта","NVIDIA RTX 5050 8GB ASUS DUAL"],["Видеокарта","NVIDIA RTX 5060 8GB GIGABYTE GAMING"],["Видеокарта","NVIDIA RTX 5060 8GB GIGABYTE WINDFORCE"],["Видеокарта","NVIDIA RTX 5060 8GB MSI GAMING"],["Видеокарта","NVIDIA RTX 5060 8GB PALIT DUAL"],["Видеокарта","NVIDIA RTX 5060 8GB ZOTAC TWIN EDGE"],["Видеокарта","NVIDIA RTX 5060 Ti 16GB GIGABYTE AORUS"],["Видеокарта","NVIDIA RTX 5060 Ti 16GB MSI SHADOW"],["Видеокарта","NVIDIA RTX 5060 Ti 16GB ZOTAC TWIN EDGE"],["Видеокарта","NVIDIA RTX 5060 Ti 8GB GIGABYTE EAGLE"],["Видеокарта","NVIDIA RTX 5060 Ti 8GB GIGABYTE GAMING"],["Видеокарта","NVIDIA RTX 5060 Ti 8GB PALIT DUAL"],["Видеокарта","NVIDIA RTX 5070 12GB GIGABYTE EAGLE ICE"],["Видеокарта","NVIDIA RTX 5070 12GB GIGABYTE GAMING"],["Видеокарта","NVIDIA RTX 5070 Ti 16GB GIGABYTE WIINDFORCE"],["Видеокарта","NVIDIA RTX 5080 16GB GIGABYTE WINDFORCE"],["Видеокарта","NVIDIA RTX 5080 16GB MSI VENTUS 3X"],["Корпус","OCYPUS GAMMA C52"],["Корпус","PHANTEKS XT V3"],["Накопитель","SSD M.2 1000GB KINGSTON NV3"],["Накопитель","SSD M.2 1000GB WD BLACK SN770"],["Накопитель","SSD M.2 1000GB WD GREEN"],["Накопитель","SSD M.2 2000GB KINGSON NV3"],["Накопитель","SSD M.2 2000GB MSI SPATIUM M461"],["Накопитель","SSD M.2 2000GB SAMSUNG 990 PRO"],["Накопитель","SSD M.2 500GB COLORFUL CN600"],["Накопитель","SSD M.2 500GB GIGABYTE 2500E"],["Накопитель","SSD M.2 500GB KINGSTON NV3"],["Накопитель","SSD M.2 500GB NETAC NV3000"],["Накопитель","SSD M.2 GIGABYTE AORUS 7000E 1000GB"],["Накопитель","SSD M.2 SAMSUNG 990 PRO 1000GB"],["Накопитель","SSD M.2 SAMSUNG 990 PRO 2000GB"],["Накопитель","SSD M.2 250GB NETAC NV3000"],["Корпус","THERMALRIGHT A70"],["Воздушное охлаждение","THERMALRIGHT CORE VISION"],["Корпус","THERMALRIGHT M10"],["Воздушное охлаждение","THERMALRIGHT STREAM VISION"],["Воздушное охлаждение","THERMALRIGHT TROFEO VISION"],["Жидкостное охлаждение","THERMALRIGHT WONDER VISON 360"],["Материнская плата","X870 MSI GAMING PLUS WIFI"],["Жидкостное охлаждение","ZALMAN ALPHA 240"],["Корпус","ZALMAN NAMU 10"],["Корпус","ZALMAN P30 BW"],["Корпус","ZALMAN P40 PRIZM"]];
+
 // заполняем селект категорий в модалке и фильтр на вкладке
 (function fillCategorySelects() {
   const opts = CATEGORIES.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
@@ -2028,6 +2039,42 @@ function normName(s) {
     .filter(Boolean)
     .sort()
     .join(' ');
+}
+
+// Импорт базы железа с основного сайта (sirlondog/star-comp_cl → content/hardware).
+// В исходных JSON есть только тип и модель: цен и ссылок нет, поэтому они пустые.
+function sitePartsToCrm() {
+  return SITE_PARTS_RAW.map(function (row) {
+    const type = String(row[0]).trim();
+    const name = String(row[1]).trim();
+    return { category: CATEGORIES.indexOf(type) >= 0 ? type : type, name: name, price: 0, link: '' };
+  }).filter(function (p) { return p.name && p.category; });
+}
+
+async function importSiteParts() {
+  const btn = document.getElementById('btnImportSiteParts');
+  if (btn) btn.disabled = true;
+  try {
+    const list = sitePartsToCrm();
+    const preview = await api('parts_import', { parts: list, dry_run: true });
+    if (!preview.added) {
+      alert('Все ' + list.length + ' позиций с сайта уже есть в CRM — добавлять нечего.');
+      return;
+    }
+    if (!confirm('База железа с сайта: ' + list.length + ' позиций.\n\nНовых: ' + preview.added + '\nУже есть в CRM (дубли, будут пропущены): ' + preview.skipped +
+      '\n\nДобавить новые позиции?')) return;
+    const res = await api('parts_import', { parts: list });
+    await refreshCache();
+    await loadAll();
+    render();
+    alert('Импорт завершён.\nДобавлено: ' + res.added + '\nПропущено дублей: ' + res.skipped);
+    dbgLog('OK', 'Импорт железа с сайта: добавлено ' + res.added + ', дублей ' + res.skipped);
+  } catch (e) {
+    dbgLog('ERROR', 'Импорт железа с сайта: ' + e.message);
+    alert('Ошибка импорта: ' + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function renderParts() {
@@ -3529,6 +3576,8 @@ function updateAdminUI() {
   document.querySelectorAll('.mobile-menu-item.admin-only').forEach(b => {
     b.style.display = on ? '' : 'none';
   });
+  const btnImport = document.getElementById('btnImportSiteParts');
+  if (btnImport && !on) btnImport.style.display = 'none';
   if (!on) document.getElementById('stockActions').style.display = 'none';
   const isOrdersView = (currentTab === 'orders' || currentTab === 'archive');
   const isParts = currentTab === 'parts';
