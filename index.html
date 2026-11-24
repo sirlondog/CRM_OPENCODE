@@ -141,6 +141,30 @@
   }
   .btn-logout:hover { background: var(--surface-2); color: var(--text); }
 
+  /* мобильное бургер-меню (на десктопе скрыто) */
+  .burger-btn {
+    display: none; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: 18px; line-height: 1;
+    padding: 7px 10px; cursor: pointer; font-family: inherit;
+  }
+  .burger-btn.open { border-color: var(--green); color: var(--green); }
+  .mobile-menu {
+    display: none; position: fixed; z-index: 9500;
+    top: 52px; left: 8px; right: 8px;
+    flex-direction: column; gap: 4px; padding: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; box-shadow: 0 18px 50px rgba(0,0,0,.6);
+  }
+  .mobile-menu.open { display: flex; }
+  .mobile-menu-item {
+    position: relative; text-align: left; padding: 11px 12px;
+    border: 0; border-radius: 8px; background: transparent; color: var(--text);
+    font-family: inherit; font-size: 14px; cursor: pointer;
+  }
+  .mobile-menu-item.active { background: var(--green); color: var(--on-green); font-weight: 500; }
+  .mobile-menu-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
   /* ===== КОНТЕНТ ===== */
   .container { max-width: 1200px; margin: 0 auto; padding: 24px 28px; }
   .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
@@ -601,18 +625,22 @@
     .card { overflow-x: auto; }
     .card table { min-width: 760px; }
     .container { padding: 14px 10px; }
-    /* шапка на мобильном в одну строку: поиск, +, Выйти */
-    header { padding: 8px 10px; gap: 8px; flex-wrap: nowrap; }
-    header .logo { font-size: 14px; }
-    header .logo-full, .login-full { display: none; }
-    header .logo-short, .login-short { display: inline; }
+    /* шапка на мобильном: бургер, поиск, «+»; всё остальное — в меню */
+    header { padding: 8px 10px; gap: 8px; flex-wrap: nowrap; justify-content: space-between; }
+    header .logo { display: none; }
+    .burger-btn { display: inline-flex; flex: 0 0 auto; }
     .header-right { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; gap: 6px; justify-content: flex-end; }
     .header-search {
       width: auto; max-width: none; flex: 1 1 auto; min-width: 0;
       padding: 7px 8px; font-size: 12px;
     }
     #btnAddOrderHeader, #btnAddPartHeader, #btnAddStockHeader { padding: 7px 10px; flex: 0 0 auto; }
-    .btn-logout { padding: 7px 10px; font-size: 12px; flex: 0 0 auto; white-space: nowrap; }
+    .btn-logout { display: none; }
+    .tabs { display: none; }
+    .toolbar { justify-content: flex-end; }
+    .dbg-fab { display: none; }
+    .dbg-panel { left: 8px; right: 8px; bottom: 8px; width: auto; height: min(70vh, 520px); }
+    .mobile-menu-item .dbg-badge { top: 6px; right: 8px; }
     .modal { padding: 20px 16px; }
     /* поле дата не вылезает за экран: модалка на всю ширину, дата сжимается */
     .modal { width: calc(100vw - 16px); max-width: calc(100vw - 16px); }
@@ -668,6 +696,7 @@
 <div id="app">
   <header>
     <div class="logo"><span class="logo-full">CRM-<span class="logo-accent">STARCOMP</span></span><span class="logo-short">CRM</span></div>
+    <button class="burger-btn" id="burgerBtn" type="button" aria-label="Меню" aria-expanded="false" onclick="toggleMobileMenu()">☰</button>
     <div class="header-right">
       <input type="search" class="header-search" id="globalSearchInput" placeholder="Поиск по всей базе…" autocomplete="off" aria-label="Поиск по всей базе" oninput="onGlobalSearchInput()" onkeydown="onGlobalSearchKey(event)">
       <button class="btn-add" id="btnAddOrderHeader" style="display:none" title="Добавить заказ" onclick="openAddModal()"><span class="btn-part-full">+ Добавить заказ</span><span class="btn-part-plus">+</span></button>
@@ -676,6 +705,17 @@
       <button class="btn-logout" onclick="doLogout()">Выйти</button>
     </div>
   </header>
+  <div class="mobile-menu" id="mobileMenu">
+    <button type="button" class="mobile-menu-item active" data-tab="orders" onclick="mobileMenuTab('orders')">Заказы</button>
+    <button type="button" class="mobile-menu-item" data-tab="archive" onclick="mobileMenuTab('archive')">Архив</button>
+    <button type="button" class="mobile-menu-item" data-tab="parts" onclick="mobileMenuTab('parts')">Железо</button>
+    <button type="button" class="mobile-menu-item admin-only" data-tab="stock" style="display:none" onclick="mobileMenuTab('stock')">Склад</button>
+    <button type="button" class="mobile-menu-item admin-only" data-tab="dashboard" style="display:none" onclick="mobileMenuTab('dashboard')">Дашборд</button>
+    <button type="button" class="mobile-menu-item admin-only" data-tab="expenses" style="display:none" onclick="mobileMenuTab('expenses')">Расходы</button>
+    <div class="mobile-menu-sep"></div>
+    <button type="button" class="mobile-menu-item" onclick="mobileMenuDebug()">Дебаг-лог<span class="dbg-badge" id="dbgMenuBadge"></span></button>
+    <button type="button" class="mobile-menu-item" onclick="mobileLogout()">Выйти</button>
+  </div>
   <div class="global-search-results" id="globalSearchResults"></div>
 
   <div class="container">
@@ -1050,6 +1090,15 @@ function dbgExtra(extra) {
   if (extra === undefined || extra === null || extra === '') return '';
   try { return ' ' + JSON.stringify(extra); } catch (e) { return ' ' + String(extra); }
 }
+function dbgUpdateBadges() {
+  const val = dbgErrors > 99 ? '99+' : String(dbgErrors);
+  ['dbgBadge', 'dbgMenuBadge'].forEach(id => {
+    const badge = document.getElementById(id);
+    if (!badge) return;
+    badge.textContent = dbgErrors > 0 ? val : '';
+    badge.classList.toggle('show', dbgErrors > 0);
+  });
+}
 function dbgLog(level, message, extra) {
   const tag = { OK: 'OK  ', INFO: 'INFO', ERROR: 'ERROR', WARN: 'WARN' }[level] || level;
   const line = '[' + dbgNow() + '] [' + tag + '] ' + message + dbgExtra(extra);
@@ -1059,11 +1108,7 @@ function dbgLog(level, message, extra) {
   if (dbgPending.length > 500) dbgPending.splice(0, dbgPending.length - 500);
   if (level === 'ERROR') {
     dbgErrors++;
-    const badge = document.getElementById('dbgBadge');
-    if (badge) {
-      badge.textContent = dbgErrors > 99 ? '99+' : String(dbgErrors);
-      badge.classList.add('show');
-    }
+    dbgUpdateBadges();
   }
   const panel = document.getElementById('dbgPanel');
   if (panel && panel.classList.contains('open')) dbgRender();
@@ -1085,8 +1130,7 @@ function dbgClear() {
   dbgErrors = 0;
   dbgPending = [];
   dbgViewingServer = false;
-  const badge = document.getElementById('dbgBadge');
-  if (badge) { badge.textContent = ''; badge.classList.remove('show'); }
+  dbgUpdateBadges();
   dbgRender();
 }
 async function dbgCopy() {
@@ -1631,6 +1675,9 @@ function switchTab(tab) {
   document.getElementById('tabDashboard').classList.toggle('active', tab === 'dashboard');
   const te = document.getElementById('tabExpenses');
   if (te) te.classList.toggle('active', tab === 'expenses');
+  document.querySelectorAll('.mobile-menu-item[data-tab]').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+  });
   const isParts = tab === 'parts';
   const isStock = tab === 'stock' && isAdmin();
   const isDash = tab === 'dashboard' && isAdmin();
@@ -1664,6 +1711,40 @@ function switchTab(tab) {
     render();
   }
 }
+
+// ===== МОБИЛЬНОЕ БУРГЕР-МЕНЮ =====
+function toggleMobileMenu(force) {
+  const menu = document.getElementById('mobileMenu');
+  const btn = document.getElementById('burgerBtn');
+  if (!menu || !btn) return;
+  const open = (typeof force === 'boolean') ? force : !menu.classList.contains('open');
+  menu.classList.toggle('open', open);
+  btn.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open && typeof hideGlobalSearchResults === 'function') hideGlobalSearchResults();
+}
+function mobileMenuTab(tab) {
+  toggleMobileMenu(false);
+  switchTab(tab);
+}
+function mobileMenuDebug() {
+  toggleMobileMenu(false);
+  dbgToggle();
+}
+function mobileLogout() {
+  toggleMobileMenu(false);
+  doLogout();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') toggleMobileMenu(false);
+});
+document.addEventListener('click', e => {
+  const menu = document.getElementById('mobileMenu');
+  const btn = document.getElementById('burgerBtn');
+  if (!menu || !btn || !menu.classList.contains('open')) return;
+  if (menu.contains(e.target) || btn.contains(e.target)) return;
+  toggleMobileMenu(false);
+});
 
 // ================= ОТРИСОВКА =================
 function statusBadge(status) {
@@ -3366,6 +3447,9 @@ function updateAdminUI() {
   document.getElementById('tabDashboard').style.display = on ? '' : 'none';
   const te = document.getElementById('tabExpenses');
   if (te) te.style.display = on ? '' : 'none';
+  document.querySelectorAll('.mobile-menu-item.admin-only').forEach(b => {
+    b.style.display = on ? '' : 'none';
+  });
   if (!on) document.getElementById('stockActions').style.display = 'none';
   const isOrdersView = (currentTab === 'orders' || currentTab === 'archive');
   const isParts = currentTab === 'parts';
