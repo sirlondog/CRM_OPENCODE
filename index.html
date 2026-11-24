@@ -1962,13 +1962,17 @@ function dashThermoValue(item) {
   const found = fixed.find(t => String(t[0]).toUpperCase() === name);
   return Number(item.price) || (found ? found[1] : 0);
 }
-function dashOrderThermoItems(o) {
+function activeConfigBlocks(o) {
   const blocks = normalizeConfigBlocks(o.config);
   if (!blocks) return [];
+  // учитываем только отмеченные конфигурации; для старых заказов,
+  // где чекбокс нигде не проставлен, берём все блоки как раньше
+  const active = blocks.filter(b => b.selected !== false);
+  return active.length ? active : blocks;
+}
+function dashOrderThermoItems(o) {
   const out = [];
-  // доход по термопасте считаем по всем конфигурациям заказа,
-  // а не только по тем, у которых отмечен чекбокс суммы
-  blocks.forEach(b => (b.items || []).forEach(it => {
+  activeConfigBlocks(o).forEach(b => (b.items || []).forEach(it => {
     const v = dashThermoValue(it);
     if (v > 0) out.push({ name: String(it.name || '').trim(), value: v });
   }));
@@ -2456,7 +2460,7 @@ function buildConfigBlock(block, idx) {
   const cb = document.createElement('input');
   cb.type = 'checkbox';
   cb.checked = !!block.selected;
-  cb.title = 'Включить стоимость этой конфигурации в сумму на главной странице (можно отметить несколько — например, заказ на 2 компьютера)';
+  cb.title = 'Отметьте конфигурацию, чтобы учесть её стоимость в заказе и доход от термопасты в разделе «Расходы» (можно отметить несколько — например, заказ на 2 компьютера)';
   cb.onchange = () => {
     if (cb.checked) div.classList.add('selected');
     else div.classList.remove('selected');
