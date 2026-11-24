@@ -1471,11 +1471,20 @@ async function refreshCurrentUserLabel() {
   return currentUserLabelStr;
 }
 
+const COMMENT_STAMP_RE = /\[\d{1,2}\.\d{1,2}\.\d{4} \d{1,2}:\d{2}, [^\]\r\n]+\]/g;
 function commentStamp() {
   const d = new Date();
   const pad = n => String(n).padStart(2, '0');
   const ts = pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
   return '[' + ts + ', ' + (currentUserLabelStr || 'user') + ']';
+}
+// для списка заказов: только текст комментария, без дат и авторов
+function plainCommentText(text) {
+  return String(text || '')
+    .replace(COMMENT_STAMP_RE, '')
+    .replace(/^[ \t]+|[ \t]+$/gm, '')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
 }
 
 function toggleOrderSection(btn) {
@@ -1496,10 +1505,13 @@ function applyCommentStampOnSave() {
   if (!current.trim()) return '';
   if (current === orig) return orig;
   const stamp = commentStamp();
-  if (!orig) return stamp + '\n' + current.trim();
+  const alreadyStamped = /^\[\d{1,2}\.\d{1,2}\.\d{4} \d{1,2}:\d{2}, [^\]\r\n]+\]/;
+  // addOrderComment() уже добавил штамп — не дублируем его при сохранении
+  if (!orig) return alreadyStamped.test(current) ? current.trim() : stamp + '\n' + current.trim();
   if (current.indexOf(orig) === 0) {
     const added = current.slice(orig.length).replace(/^\n+/, '').trim();
     if (!added) return orig;
+    if (alreadyStamped.test(added)) return orig + '\n\n' + added;
     return orig + '\n\n' + stamp + '\n' + added;
   }
   // текст изменён не в конце истории — дописываем новую пометку с текущим текстом
@@ -1693,7 +1705,7 @@ function render() {
         (telDigits(o.phone) ? '<a class="cust-phone cust-tel" href="tel:' + telDigits(o.phone) + '">' + esc(o.phone) + '</a>' : '<div class="cust-phone">' + esc(o.phone) + '</div>') +
         (o.login ? '<div class="cust-login">@' + esc(o.login) + '</div>' : '') + '</td>' +
       '<td class="order-cost">' + (total > 0 ? fmtMoney(total) : '—') + '</td>' +
-      '<td class="comment-cell" title="' + esc(o.comment) + '">' + esc(o.comment) + '</td>' +
+      '<td class="comment-cell" title="' + esc(plainCommentText(o.comment)) + '">' + esc(plainCommentText(o.comment)) + '</td>' +
     '</tr>';
   }).join('');
 }
