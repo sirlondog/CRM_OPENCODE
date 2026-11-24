@@ -432,6 +432,14 @@
   .modal textarea { resize: vertical; min-height: 140px; }
   .number-row { display: flex; gap: 12px; align-items: center; }
   .number-row #fNumber { flex: 1; min-width: 0; }
+  /* телефон: код +7 зафиксирован и не стирается */
+  .phone-wrap { display: flex; gap: 8px; align-items: center; }
+  .phone-prefix {
+    flex: 0 0 auto; padding: 9px 11px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--surface-3); color: var(--text);
+    font-family: var(--mono); font-size: 14px; user-select: none;
+  }
+  .phone-wrap input { flex: 1 1 auto; min-width: 0; }
   .manual-check {
     display: flex; align-items: center; gap: 6px; white-space: nowrap;
     font-size: 13px; color: var(--text-muted); cursor: pointer; user-select: none;
@@ -695,12 +703,7 @@
           <div class="dash-label">Закрытых заказов</div>
           <div class="dash-value" id="dashOrders">0</div>
         </div>
-        <div class="dash-card accent">
-          <div class="dash-label">Прибыль</div>
-          <div class="dash-value" id="dashProfit">0 ₽</div>
-        </div>
       </div>
-      <div class="dash-note">Прибыль = сумма стоимости термопаст (MX или указанной вручную) в закрытых заказах за выбранный месяц. Отказы не учитываются.</div>
       <div class="dash-cards" style="margin-top:14px;">
         <div class="dash-card">
           <div class="dash-label">Расходы за месяц</div>
@@ -709,6 +712,16 @@
         <div class="dash-card accent">
           <div class="dash-label">Доход минус расход</div>
           <div class="dash-value" id="dashNet">0 ₽</div>
+        </div>
+      </div>
+      <div class="dash-cards" style="margin-top:14px;">
+        <div class="dash-card">
+          <div class="dash-label">ЗП Игорь</div>
+          <div class="dash-value" id="dashSalaryIgor">0 ₽</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-label">Реклама</div>
+          <div class="dash-value" id="dashAds">0 ₽</div>
         </div>
       </div>
     </div>
@@ -877,7 +890,11 @@
         <label for="fName">Имя заказчика *</label>
         <input id="fName" type="text" name="customerName" autocomplete="name" placeholder="Иван Иванов">
         <label for="fPhone">Номер телефона</label>
-        <input id="fPhone" type="tel" name="customerPhone" autocomplete="tel" placeholder="+7 (___) ___-__-__">
+        <div class="phone-wrap">
+          <span class="phone-prefix" aria-hidden="true">+7</span>
+          <input id="fPhone" type="tel" name="customerPhone" autocomplete="tel" inputmode="tel"
+                 placeholder="(___) ___-__-__" oninput="onPhoneInput(event)" aria-label="Номер телефона после +7">
+        </div>
         <label for="fLogin">Логин</label>
         <input id="fLogin" type="text" name="customerLogin" autocomplete="off" placeholder="логин заказчика">
       </div>
@@ -1763,6 +1780,44 @@ function telDigits(s) {
   const d = String(s ?? '').replace(/[^\d+]/g, '');
   return /\d{5,}/.test(d) ? d : '';
 }
+// телефон хранится с кодом +7, а в поле вводится только номер после кода
+function phoneTailDigits(s) {
+  let d = String(s ?? '').replace(/\D/g, '');
+  if (d.length === 11 && (d[0] === '7' || d[0] === '8')) d = d.slice(1);
+  return d.slice(0, 10);
+}
+function formatPhoneTail(s) {
+  const d = phoneTailDigits(s);
+  if (!d) return '';
+  let out = '(' + d.slice(0, 3);
+  if (d.length >= 3) out += ')';
+  if (d.length > 3) out += ' ' + d.slice(3, 6);
+  if (d.length >= 6) out += '-' + d.slice(6, 8);
+  if (d.length >= 8) out += '-' + d.slice(8, 10);
+  return out;
+}
+function setPhoneInput(value) {
+  const el = document.getElementById('fPhone');
+  if (el) el.value = formatPhoneTail(value);
+}
+function phoneValue() {
+  const el = document.getElementById('fPhone');
+  const d = el ? phoneTailDigits(el.value) : '';
+  return d ? '+7 ' + formatPhoneTail(d) : '';
+}
+function onPhoneInput(e) {
+  const el = e.target;
+  const caret = (el.selectionStart == null) ? el.value.length : el.selectionStart;
+  const digitsBefore = el.value.slice(0, caret).replace(/\D/g, '').length;
+  const formatted = formatPhoneTail(el.value);
+  el.value = formatted;
+  let pos = 0, count = 0;
+  while (pos < formatted.length && count < digitsBefore) {
+    if (/\d/.test(formatted[pos])) count++;
+    pos++;
+  }
+  try { el.setSelectionRange(pos, pos); } catch (err) {}
+}
 function fmtDate(d) {
   if (!d) return '';
   const [y, m, day] = d.split('-');
@@ -2112,13 +2167,19 @@ function renderDashboard() {
   const list = dashClosedOrders().filter(o => dashMonthKey(o.date) === key);
   document.getElementById('dashOrders').textContent = list.length;
   const profit = list.reduce((s, o) => s + dashOrderProfit(o), 0);
-  document.getElementById('dashProfit').textContent = profit.toLocaleString('ru-RU') + ' ₽';
   const monthExpenses = (expenses || []).filter(e => dashMonthKey(e.dt) === key);
   const expensesSum = monthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const expEl = document.getElementById('dashExpenses');
   if (expEl) expEl.textContent = expensesSum.toLocaleString('ru-RU') + ' ₽';
   const netEl = document.getElementById('dashNet');
   if (netEl) netEl.textContent = (profit - expensesSum).toLocaleString('ru-RU') + ' ₽';
+  const sumByCategory = cat => monthExpenses
+    .filter(e => String(e.category || '') === cat)
+    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const salaryEl = document.getElementById('dashSalaryIgor');
+  if (salaryEl) salaryEl.textContent = sumByCategory('ЗП Игорь').toLocaleString('ru-RU') + ' ₽';
+  const adsEl = document.getElementById('dashAds');
+  if (adsEl) adsEl.textContent = sumByCategory('Директ').toLocaleString('ru-RU') + ' ₽';
 }
 
 // старый формат (плоский список позиций) → новый (блоки конфигураций)
@@ -2645,7 +2706,7 @@ function collectOrderDraftPayload() {
       number: (document.getElementById('fNumber').value || ''),
       date: (document.getElementById('fDate').value || ''),
       name: (document.getElementById('fName').value || ''),
-      phone: (document.getElementById('fPhone').value || ''),
+      phone: (typeof phoneValue === 'function' ? phoneValue() : (document.getElementById('fPhone').value || '')),
       login: (document.getElementById('fLogin').value || ''),
       source: (document.getElementById('fSource').value || ''),
       payment: (document.getElementById('fPayment').value || ''),
@@ -2683,7 +2744,7 @@ function applyOrderDraftPayload(p) {
   if (!p) return;
   if (document.getElementById('fDate')) document.getElementById('fDate').value = p.date || '';
   if (document.getElementById('fName')) document.getElementById('fName').value = p.name || '';
-  if (document.getElementById('fPhone')) document.getElementById('fPhone').value = p.phone || '';
+  if (document.getElementById('fPhone')) setPhoneInput(p.phone || '');
   if (document.getElementById('fLogin')) document.getElementById('fLogin').value = p.login || '';
   if (document.getElementById('fSource')) document.getElementById('fSource').value = p.source || '';
   if (document.getElementById('fPayment')) document.getElementById('fPayment').value = p.payment || '';
@@ -2749,7 +2810,7 @@ function openOrderCard(id) {
   document.getElementById('fNumberManual').checked = false;
   document.getElementById('fDate').value = o.date || '';
   document.getElementById('fName').value = o.name || '';
-  document.getElementById('fPhone').value = o.phone || '';
+  setPhoneInput(o.phone || '');
   document.getElementById('fLogin').value = o.login || '';
   document.getElementById('fSource').value = o.source || '';
   document.getElementById('fPayment').value = o.payment || '';
@@ -2875,7 +2936,7 @@ function openAddModal() {
   document.getElementById('fNumberManual').checked = false;
   document.getElementById('fDate').value = new Date().toISOString().slice(0, 10);
   document.getElementById('fName').value = '';
-  document.getElementById('fPhone').value = '';
+  setPhoneInput('');
   document.getElementById('fLogin').value = '';
   document.getElementById('fSource').value = '';
   document.getElementById('fPayment').value = '';
@@ -3017,7 +3078,7 @@ async function _saveOrder() {
     number: number,
     date: document.getElementById('fDate').value,
     name: name,
-    phone: document.getElementById('fPhone').value.trim(),
+    phone: phoneValue(),
     login: document.getElementById('fLogin').value.trim(),
     source: document.getElementById('fSource').value.trim(),
     payment: document.getElementById('fPayment').value.trim(),
