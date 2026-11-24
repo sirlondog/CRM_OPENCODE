@@ -101,10 +101,9 @@
     border-bottom: 1px solid var(--border);
     position: sticky; top: 0; z-index: 10;
   }
-  header .logo { font-weight: 600; font-size: 16px; letter-spacing: -.01em; white-space: nowrap; flex: 0 0 auto; }
-  header .logo .logo-accent { color: var(--green); }
+  header .logo { display: none; }
   .logo-short, .login-short { display: none; }
-  .header-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+  .header-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
   .header-search {
     width: 220px; max-width: min(52vw, 280px); padding: 7px 10px;
     border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
@@ -176,6 +175,20 @@
   /* ===== КОНТЕНТ ===== */
   .container { max-width: 1200px; margin: 0 auto; padding: 24px 28px; }
   .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
+  .desktop-table-controls { display: none; }
+  @media (min-width: 641px) {
+    .desktop-table-controls {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+      flex: 0 0 100%;
+    }
+    .desktop-table-controls .header-search { width: 280px; max-width: 100%; }
+    .desktop-table-controls .btn-add { padding: 9px 18px; }
+    .desktop-table-controls .btn-part-full { display: inline; }
+    .desktop-table-controls .btn-part-plus { display: none; }
+  }
+  @media (max-width: 640px) {
+    .desktop-table-controls { display: none; }
+  }
   .tabs {
     display: flex; gap: 4px;
     background: var(--surface); border: 1px solid var(--border);
@@ -731,6 +744,7 @@
 
   <div class="container">
     <div class="toolbar">
+      <div class="desktop-table-controls" id="desktopTableControls"></div>
       <div class="tabs">
         <button class="tab-btn active" id="tabOrders" onclick="switchTab('orders')">Заказы</button>
         <button class="tab-btn" id="tabArchive" onclick="switchTab('archive')">Архив</button>
@@ -1668,6 +1682,7 @@ async function enterApp() {
   dbgAuthorized = true;
   dbgFlush();
   updateAdminUI();
+  syncHeaderControlsLayout();
   await migrateLocalData();
   await loadAll();
   // расходы нужны и глобальному поиску, поэтому грузим их сразу для admin
@@ -1721,6 +1736,24 @@ function switchTab(tab) {
   } else {
     render();
   }
+}
+
+// На десктопе кнопки добавления и поиск стоят столбцом слева над таблицей,
+// на мобильном — возвращаются в шапку рядом с бургером.
+function syncHeaderControlsLayout() {
+  const desktop = window.matchMedia('(min-width: 641px)').matches;
+  const target = desktop ? document.getElementById('desktopTableControls') : document.querySelector('.header-right');
+  if (!target) return;
+  const before = document.querySelector('.header-right .btn-logout');
+  const desktopIds = ['btnAddOrderHeader', 'btnAddPartHeader', 'btnAddStockHeader', 'globalSearchInput'];
+  // на мобильном сохраняем порядок: поиск, кнопки добавления, Выйти
+  const ids = (!desktop && before) ? desktopIds.slice().reverse() : desktopIds;
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el || el.parentElement === target) return;
+    if (!desktop && before) target.insertBefore(el, before);
+    else target.appendChild(el);
+  });
 }
 
 // ===== МОБИЛЬНОЕ БУРГЕР-МЕНЮ =====
@@ -3395,6 +3428,20 @@ function openGlobalSearchResult(type, id) {
     if (view) view.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
+function positionGlobalSearchResults() {
+  const box = document.getElementById('globalSearchResults');
+  const input = document.getElementById('globalSearchInput');
+  if (!box || !input) return;
+  if (window.matchMedia('(min-width: 641px)').matches) {
+    const r = input.getBoundingClientRect();
+    box.style.top = (r.bottom + 6) + 'px';
+    box.style.left = r.left + 'px';
+    box.style.right = 'auto';
+    box.style.width = Math.max(300, Math.min(520, r.width)) + 'px';
+  } else {
+    box.style.top = ''; box.style.left = ''; box.style.right = ''; box.style.width = '';
+  }
+}
 function renderGlobalSearchResults(q) {
   if (!isAdmin() || q !== globalSearchQuery) return;
   const box = document.getElementById('globalSearchResults');
@@ -3440,6 +3487,7 @@ function renderGlobalSearchResults(q) {
   if (!groups.length) {
     box.innerHTML = '<div class="global-search-empty">Ничего не найдено</div>';
     box.classList.add('open');
+    positionGlobalSearchResults();
     return;
   }
   box.innerHTML = groups.map(g =>
@@ -3448,6 +3496,7 @@ function renderGlobalSearchResults(q) {
       esc(it.label) + '</button>').join('') +
     '</div>').join('');
   box.classList.add('open');
+  positionGlobalSearchResults();
 }
 function updateAdminUI() {
   const on = isAdmin();
@@ -4157,6 +4206,11 @@ document.addEventListener('click', function (e) {
   const input = document.getElementById('globalSearchInput');
   const box = document.getElementById('globalSearchResults');
   if (input && box && !input.contains(e.target) && !box.contains(e.target)) hideGlobalSearchResults();
+});
+window.addEventListener('resize', () => {
+  syncHeaderControlsLayout();
+  const box = document.getElementById('globalSearchResults');
+  if (box && box.classList.contains('open')) positionGlobalSearchResults();
 });
 
 // ================= АВТОВХОД =================
