@@ -1965,10 +1965,10 @@ function dashThermoValue(item) {
 function dashOrderThermoItems(o) {
   const blocks = normalizeConfigBlocks(o.config);
   if (!blocks) return [];
-  const active = blocks.filter(b => b.selected !== false);
-  const list = active.length ? active : blocks;
   const out = [];
-  list.forEach(b => (b.items || []).forEach(it => {
+  // доход по термопасте считаем по всем конфигурациям заказа,
+  // а не только по тем, у которых отмечен чекбокс суммы
+  blocks.forEach(b => (b.items || []).forEach(it => {
     const v = dashThermoValue(it);
     if (v > 0) out.push({ name: String(it.name || '').trim(), value: v });
   }));
@@ -1998,12 +1998,7 @@ function thermoIncomeRows() {
   return rows;
 }
 function dashOrderProfit(o) {
-  const blocks = normalizeConfigBlocks(o.config);
-  if (!blocks) return 0;
-  const active = blocks.filter(b => b.selected !== false);
-  const list = active.length ? active : blocks;
-  return list.reduce((sum, b) =>
-    sum + (b.items || []).reduce((s, it) => s + dashThermoValue(it), 0), 0);
+  return dashOrderThermoItems(o).reduce((sum, t) => sum + t.value, 0);
 }
 function fillDashMonths(keep) {
   const sel = document.getElementById('dashMonth');
@@ -2433,8 +2428,11 @@ function updateBlockSum(blockEl) {
     if (!sel.value) { allFilled = false; return; }
     if (sel.value === 'none') return; // «Не нужно» — на сумму не влияет
     if (tr.dataset.thermo) {
-      sum += (sel.value === 'manual')
-        ? rowCost(tr)
+      const costEl = tr.querySelector('.config-cost');
+      const typed = rowCost(tr);
+      const manualPrice = (costEl && costEl.dataset.manual === '1' && typed > 0);
+      sum += (sel.value === 'manual' || manualPrice)
+        ? typed
         : Number(sel.selectedOptions[0].dataset.price || 0);
       return;
     }
@@ -2582,7 +2580,14 @@ function collectBlockItems(tbody) {
       } else if (val === 'manual') {
         out.push({ line: line.label, category: line.label, name: 'Указать вручную', price: rowCost(tr), qty: 1, manual: true });
       } else {
-        out.push({ line: line.label, category: line.label, name: val, price: Number(sel.selectedOptions[0].dataset.price || 0), qty: 1 });
+        const opt = sel.selectedOptions[0];
+        const costEl = tr.querySelector('.config-cost');
+        const typed = Number(rowCost(tr)) || 0;
+        // если цену термопасты поправили вручную — сохраняем её, а не цену из списка
+        const price = (costEl && costEl.dataset.manual === '1' && typed > 0)
+          ? typed
+          : (Number(opt && opt.dataset.price) || 0);
+        out.push({ line: line.label, category: line.label, name: val, price: price, qty: 1 });
       }
       return;
     }
@@ -3071,8 +3076,12 @@ async function _saveOrder() {
   const usedNum = parseInt(saved.number, 10);
   if (!isNaN(usedNum) && usedNum >= nextNum) {
     nextNum = usedNum + 1;
-    sb.from('settings').upsert({ key: 'nextnum', value: nextNum }).then(() => {});
+    try { await sb.from('settings').upsert({ key: 'nextnum', value: nextNum }); } catch (e) {}
   }
+
+  // перечитываем заказы с сервера: новые статус и термопаста сразу видны
+  // в дашборде и во вкладке «Расходы», даже если страница не перезагружалась
+  try { await refreshCache(); await loadAll(); } catch (e) { console.warn('refresh after save', e); }
 
   originalOrderComment = commentFinal || '';
   editingOrderUpdatedAt = saved.updated_at || null;
