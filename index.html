@@ -289,12 +289,15 @@
   .config-block-del:hover { color: var(--red); background: rgba(229,72,77,.12); }
   .config-block.collapsed .config-block-body { display: none; }
   .config-block .config-table { margin-top: 2px; }
-  .btn-config-add {
+  .config-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .config-quick-actions .btn-config-add { margin-top: 0; }
+  .btn-config-add, .btn-config-quick {
     background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
     padding: 8px 14px; cursor: pointer; font-size: 13px; color: var(--text-light);
-    font-family: inherit; margin-top: 10px; transition: .15s;
+    font-family: inherit; transition: .15s;
   }
-  .btn-config-add:hover { background: var(--surface-3); color: var(--text); }
+  .btn-config-add { margin-top: 10px; }
+  .btn-config-add:hover, .btn-config-quick:hover { background: var(--surface-3); color: var(--text); }
 
   /* ===== КНОПКА КОПИРОВАНИЯ ЗАКАЗА ===== */
   .num-wrap { display: flex; align-items: center; gap: 6px; }
@@ -884,7 +887,11 @@
       <button type="button" class="section-toggle" onclick="toggleOrderSection(this)">Конфигурации</button>
       <div class="section-body">
         <div id="configBlocks"></div>
-        <button type="button" class="btn-config-add" onclick="addConfigBlock()">+ Добавить ещё конфигурацию</button>
+        <div class="config-quick-actions">
+          <button type="button" class="btn-config-quick" title="Поставить «Не нужно» во всех строках всех конфигураций" onclick="setAllConfigSkipped()">Всё «Не нужно»</button>
+          <button type="button" class="btn-config-quick" title="Сбросить все поля в состояние по умолчанию (— не выбрано —)" onclick="clearAllConfig()">Очистить всё</button>
+          <button type="button" class="btn-config-add" onclick="addConfigBlock()">+ Добавить ещё конфигурацию</button>
+        </div>
       </div>
     </div>
 
@@ -2193,6 +2200,16 @@ function buildConfigTableInto(tbody, savedList, onChange) {
         cost.style.display = (sel.value === 'manual') ? '' : 'none';
         if (sel.value === 'manual') cost.focus();
       });
+      // используется кнопками быстрого выбора всех полей
+      sel.quickSetValue = function (value) {
+        sel.value = value;
+        cost.style.display = (value === 'manual') ? '' : 'none';
+        if (value !== 'manual') {
+          cost.value = '';
+          delete cost.dataset.manual;
+        }
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      };
       tdSel.appendChild(sel);
       tdCost.appendChild(cost);
     } else {
@@ -2301,6 +2318,8 @@ function buildConfigTableInto(tbody, savedList, onChange) {
         sel.dispatchEvent(new Event('change', { bubbles: true }));
         if (value === 'manual') nameInput.focus();
       }
+      // используется кнопками быстрого выбора всех полей
+      sel.quickSetValue = setValue;
 
       function fillParts() {
         const available = parts.filter(p => line.cats.includes(p.category));
@@ -2521,6 +2540,26 @@ function addConfigBlock() {
   container.appendChild(buildConfigBlock({}, container.querySelectorAll('.config-block').length));
   renumberConfigBlocks();
 }
+
+// быстрый выбор всех полей во всех конфигурациях заказа
+function setAllConfigValues(value) {
+  const selects = document.querySelectorAll('#configBlocks .config-block tbody .config-part');
+  selects.forEach(sel => {
+    if (typeof sel.quickSetValue === 'function') sel.quickSetValue(value);
+    else {
+      sel.value = value;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (value !== 'manual') {
+      const tr = sel.closest('tr');
+      const nameInput = tr && tr.querySelector('.config-name-input');
+      if (nameInput) nameInput.value = '';
+    }
+  });
+  document.querySelectorAll('#configBlocks .config-block').forEach(updateBlockSum);
+}
+function setAllConfigSkipped() { setAllConfigValues('none'); }
+function clearAllConfig() { setAllConfigValues(''); }
 
 function renderConfigBlocks(blocks) {
   const container = document.getElementById('configBlocks');
