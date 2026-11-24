@@ -103,7 +103,36 @@
   }
   header .logo { font-weight: 600; font-size: 16px; letter-spacing: -.01em; }
   header .logo span { color: var(--green); }
-  .header-right { display: flex; align-items: center; gap: 14px; }
+  .header-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+  .header-search {
+    width: 220px; max-width: min(52vw, 280px); padding: 7px 10px;
+    border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+    background: var(--surface-2); color: var(--text); font-family: inherit;
+    display: none;
+  }
+  .header-search::placeholder { color: var(--text-muted); }
+  .header-search:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(62,207,142,.12); }
+  .global-search-results {
+    display: none; position: fixed; z-index: 9000;
+    width: min(520px, calc(100vw - 24px)); max-height: 70vh; overflow-y: auto;
+    top: 62px; right: 20px; padding: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.6);
+  }
+  .global-search-results.open { display: block; }
+  .global-search-group { margin-bottom: 8px; }
+  .global-search-group:last-child { margin-bottom: 0; }
+  .global-search-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--text-muted); padding: 6px 8px 4px;
+  }
+  .global-search-item {
+    width: 100%; display: block; text-align: left; padding: 8px 10px;
+    border: 0; border-radius: 7px; background: transparent; color: var(--text);
+    font-family: inherit; font-size: 13px; cursor: pointer;
+  }
+  .global-search-item:hover { background: var(--surface-3); color: var(--green); }
+  .global-search-empty { padding: 14px 10px; color: var(--text-muted); font-size: 13px; }
   .btn-logout {
     background: transparent; border: 1px solid var(--border); border-radius: 8px;
     padding: 7px 14px; cursor: pointer; font-size: 13px; color: var(--text-light);
@@ -559,6 +588,8 @@
       min-width: 0; width: 100%;
       -webkit-appearance: none; appearance: none;
     }
+    /* результаты глобального поиска — на всю ширину экрана */
+    .global-search-results { top: 100px; right: 10px; width: calc(100vw - 20px); max-width: none; }
     /* строка вкладок переносится, кнопки не вылезают за экран */
     .tabs { flex-wrap: wrap; }
     .toolbar > div:last-child { flex-wrap: wrap; gap: 10px; }
@@ -604,12 +635,14 @@
   <header>
     <div class="logo">CRM-<span>STARCOMP</span></div>
     <div class="header-right">
+      <input type="search" class="header-search" id="globalSearchInput" placeholder="Поиск по всей базе…" autocomplete="off" aria-label="Поиск по всей базе" oninput="onGlobalSearchInput()" onkeydown="onGlobalSearchKey(event)">
       <button class="btn-add" id="btnAddOrderHeader" style="display:none" title="Добавить заказ" onclick="openAddModal()"><span class="btn-part-full">+ Добавить заказ</span><span class="btn-part-plus">+</span></button>
       <button class="btn-add" id="btnAddPartHeader" style="display:none" title="Добавить железо" onclick="openPartModal()"><span class="btn-part-full">+ Добавить</span><span class="btn-part-plus">+</span></button>
       <button class="btn-add" id="btnAddStockHeader" style="display:none" title="Добавить позицию на склад" onclick="openStockModal()"><span class="btn-part-full">+ Добавить</span><span class="btn-part-plus">+</span></button>
       <button class="btn-logout" onclick="doLogout()">Выйти</button>
     </div>
   </header>
+  <div class="global-search-results" id="globalSearchResults"></div>
 
   <div class="container">
     <div class="toolbar">
@@ -1522,6 +1555,8 @@ async function enterApp() {
   updateAdminUI();
   await migrateLocalData();
   await loadAll();
+  // расходы нужны и глобальному поиску, поэтому грузим их сразу для admin
+  if (isAdmin()) await loadExpensesIfAdmin();
   render();
 }
 
@@ -3072,8 +3107,106 @@ function switchStockView(archived) {
 
 function isAdmin() { return currentUserLabelStr === 'admin'; }
 
+let globalSearchTimer = 0;
+let globalSearchQuery = '';
+function hideGlobalSearchResults() {
+  const box = document.getElementById('globalSearchResults');
+  if (box) { box.classList.remove('open'); box.innerHTML = ''; }
+}
+function onGlobalSearchInput() {
+  clearTimeout(globalSearchTimer);
+  const q = document.getElementById('globalSearchInput').value.trim();
+  globalSearchQuery = q;
+  if (!q) { hideGlobalSearchResults(); return; }
+  globalSearchTimer = setTimeout(() => renderGlobalSearchResults(q), 200);
+}
+function onGlobalSearchKey(e) {
+  if (e.key === 'Escape') { hideGlobalSearchResults(); return; }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const box = document.getElementById('globalSearchResults');
+    const first = box && box.querySelector('.global-search-item');
+    if (first) first.click();
+  }
+}
+function globalSearchMatch(q, values) {
+  const needle = String(q).toLowerCase();
+  return values.some(v => String(v == null ? '' : v).toLowerCase().includes(needle));
+}
+function openGlobalSearchResult(type, id) {
+  hideGlobalSearchResults();
+  const input = document.getElementById('globalSearchInput');
+  if (input) { input.value = ''; input.blur(); }
+  globalSearchQuery = '';
+  if (type === 'order') { openOrderCard(id); return; }
+  if (type === 'part') { openPartModal(id); return; }
+  if (type === 'stock') { switchTab('stock'); openStockModal(id); return; }
+  if (type === 'expense') {
+    switchTab('expenses');
+    editExpense(id);
+    const view = document.getElementById('expensesView');
+    if (view) view.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+function renderGlobalSearchResults(q) {
+  if (!isAdmin() || q !== globalSearchQuery) return;
+  const box = document.getElementById('globalSearchResults');
+  if (!box) return;
+  const groups = [];
+  const foundOrders = (orders || []).concat(archived || []).filter(o =>
+    globalSearchMatch(q, [o.number, o.name, o.phone, o.login, o.source, o.status, o.comment,
+      o.cost, o.total, JSON.stringify(o.config || '')]));
+  if (foundOrders.length) groups.push({
+    title: 'Заказы',
+    items: foundOrders.slice(0, 12).map(o => ({
+      label: 'Заказ ' + (o.number || '#') + ' · ' + (o.name || '') + ' · ' + (o.status || ''),
+      onclick: "openGlobalSearchResult('order', " + Number(o.id) + ")"
+    }))
+  });
+  const foundParts = (parts || []).filter(p => globalSearchMatch(q, [p.category, p.name, p.link, p.price]));
+  if (foundParts.length) groups.push({
+    title: 'Железо',
+    items: foundParts.slice(0, 12).map(p => ({
+      label: p.name + ' · ' + (p.category || '') + ' · ' + fmtMoney(Number(p.price || 0)),
+      onclick: "openGlobalSearchResult('part', " + Number(p.id) + ")"
+    }))
+  });
+  const foundStock = (stock || []).filter(s => globalSearchMatch(q,
+    [partName(s.position), s.serial, s.note, s.cost, s.warranty, s.archived ? 'архив' : 'склад']));
+  if (foundStock.length) groups.push({
+    title: 'Склад',
+    items: foundStock.slice(0, 12).map(s => ({
+      label: (partName(s.position) || 'Позиция') + ' · ' + (s.serial || '') + ' · ' + (s.cost || '') +
+        (s.archived ? ' · АРХИВ' : ''),
+      onclick: "openGlobalSearchResult('stock', " + Number(s.id) + ")"
+    }))
+  });
+  const foundExpenses = (expenses || []).filter(e => globalSearchMatch(q, [e.category, e.note, e.dt, e.amount]));
+  if (foundExpenses.length) groups.push({
+    title: 'Расходы',
+    items: foundExpenses.slice(0, 12).map(e => ({
+      label: fmtDate(e.dt) + ' · ' + (e.category || '') + ' · ' + Number(e.amount || 0).toLocaleString('ru-RU') +
+        ' ₽' + (e.note ? ' · ' + e.note : ''),
+      onclick: "openGlobalSearchResult('expense', " + Number(e.id) + ")"
+    }))
+  });
+  if (!groups.length) {
+    box.innerHTML = '<div class="global-search-empty">Ничего не найдено</div>';
+    box.classList.add('open');
+    return;
+  }
+  box.innerHTML = groups.map(g =>
+    '<div class="global-search-group"><div class="global-search-title">' + esc(g.title) + '</div>' +
+    g.items.map(it => '<button type="button" class="global-search-item" onclick="' + it.onclick + '">' +
+      esc(it.label) + '</button>').join('') +
+    '</div>').join('');
+  box.classList.add('open');
+}
 function updateAdminUI() {
   const on = isAdmin();
+  const gs = document.getElementById('globalSearchInput');
+  if (gs) gs.style.display = on ? 'block' : 'none';
+  if (!on && gs) { gs.value = ''; hideGlobalSearchResults(); }
   document.getElementById('tabStock').style.display = on ? '' : 'none';
   document.getElementById('tabDashboard').style.display = on ? '' : 'none';
   const te = document.getElementById('tabExpenses');
@@ -3766,6 +3899,14 @@ document.getElementById('sDate').addEventListener('change', () => {
 setInterval(() => {
   if (currentTab === 'archive' && !isAdmin()) render();
 }, 60 * 1000);
+
+// закрываем результаты глобального поиска по клику вне поля и списка
+document.addEventListener('click', function (e) {
+  if (!isAdmin()) return;
+  const input = document.getElementById('globalSearchInput');
+  const box = document.getElementById('globalSearchResults');
+  if (input && box && !input.contains(e.target) && !box.contains(e.target)) hideGlobalSearchResults();
+});
 
 // ================= АВТОВХОД =================
 // если пользователь уже входил (сессия сохранена) — открываем приложение сразу
