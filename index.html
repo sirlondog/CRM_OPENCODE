@@ -1459,9 +1459,10 @@ function toggleOrderSection(btn) {
   if (sec) sec.classList.toggle('collapsed');
 }
 
-function setOrderSectionsCollapsed(collapsed) {
+function setOrderSectionsCollapsed(collapsed, keepMainOpen) {
   document.querySelectorAll('#modalOverlay .form-section').forEach(sec => {
-    sec.classList.toggle('collapsed', collapsed !== false);
+    const isMain = sec.getAttribute('data-section') === 'main';
+    sec.classList.toggle('collapsed', collapsed !== false && !(keepMainOpen && isMain));
   });
 }
 
@@ -2644,7 +2645,8 @@ function applyOrderDraftPayload(p) {
   if (document.getElementById('fStatus')) document.getElementById('fStatus').value = p.status || 'Согласование';
   if (typeof renderCommentList === 'function') renderCommentList(p.comment || '');
   if (typeof renderConfigBlocks === 'function') renderConfigBlocks(p.config || null);
-  if (typeof setOrderSectionsCollapsed === 'function') setOrderSectionsCollapsed(true);
+  // при новом заказе первая секция «Данные заказа» остаётся раскрытой
+  if (typeof setOrderSectionsCollapsed === 'function') setOrderSectionsCollapsed(true, editingId === null);
 }
 function tryRestoreOrderDraft(isNew) {
   try {
@@ -2836,7 +2838,8 @@ function openAddModal() {
   renderCommentList('');
   renderConfigBlocks(null);
   document.getElementById('fStatus').value = 'Согласование';
-  setOrderSectionsCollapsed(true);
+  // новый заказ: сразу раскрываем «Данные заказа», остальные секции свёрнуты
+  setOrderSectionsCollapsed(true, true);
   document.getElementById('modalOverlay').classList.add('open');
   bindOrderDraftAutosave();
   tryRestoreOrderDraft(true);
