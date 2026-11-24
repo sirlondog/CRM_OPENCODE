@@ -177,14 +177,18 @@
   .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
   .desktop-table-controls { display: none; }
   @media (min-width: 641px) {
+    header { display: none; }
     .desktop-table-controls {
-      display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
-      flex: 0 0 100%;
+      display: flex; flex-direction: row; align-items: center; justify-content: space-between;
+      gap: 16px; flex: 0 0 100%; margin-bottom: 2px;
     }
+    .desktop-controls-left { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
+    .desktop-controls-right { display: flex; align-items: center; flex: 0 0 auto; }
     .desktop-table-controls .header-search { width: 280px; max-width: 100%; }
     .desktop-table-controls .btn-add { padding: 9px 18px; }
     .desktop-table-controls .btn-part-full { display: inline; }
     .desktop-table-controls .btn-part-plus { display: none; }
+    .desktop-controls-right .btn-logout { height: 38px; box-sizing: border-box; padding: 0 16px; }
   }
   @media (max-width: 640px) {
     .desktop-table-controls { display: none; }
@@ -744,7 +748,10 @@
 
   <div class="container">
     <div class="toolbar">
-      <div class="desktop-table-controls" id="desktopTableControls"></div>
+      <div class="desktop-table-controls" id="desktopTableControls">
+        <div class="desktop-controls-left" id="desktopControlsLeft"></div>
+        <div class="desktop-controls-right" id="desktopControlsRight"></div>
+      </div>
       <div class="tabs">
         <button class="tab-btn active" id="tabOrders" onclick="switchTab('orders')">Заказы</button>
         <button class="tab-btn" id="tabArchive" onclick="switchTab('archive')">Архив</button>
@@ -1738,22 +1745,31 @@ function switchTab(tab) {
   }
 }
 
-// На десктопе кнопки добавления и поиск стоят столбцом слева над таблицей,
-// на мобильном — возвращаются в шапку рядом с бургером.
+// На десктопе шапку убираем: кнопка добавления и поиск — в одной строке слева
+// над таблицей, «Выйти» — в той же строке справа. На мобильном всё в шапке.
 function syncHeaderControlsLayout() {
   const desktop = window.matchMedia('(min-width: 641px)').matches;
-  const target = desktop ? document.getElementById('desktopTableControls') : document.querySelector('.header-right');
-  if (!target) return;
-  const before = document.querySelector('.header-right .btn-logout');
-  const desktopIds = ['btnAddOrderHeader', 'btnAddPartHeader', 'btnAddStockHeader', 'globalSearchInput'];
-  // на мобильном сохраняем порядок: поиск, кнопки добавления, Выйти
-  const ids = (!desktop && before) ? desktopIds.slice().reverse() : desktopIds;
-  ids.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el || el.parentElement === target) return;
-    if (!desktop && before) target.insertBefore(el, before);
-    else target.appendChild(el);
-  });
+  const headerRight = document.querySelector('.header-right');
+  const left = document.getElementById('desktopControlsLeft');
+  const right = document.getElementById('desktopControlsRight');
+  if (!headerRight || !left || !right) return;
+  const addIds = ['btnAddOrderHeader', 'btnAddPartHeader', 'btnAddStockHeader', 'globalSearchInput'];
+  const logout = headerRight.querySelector('.btn-logout') || right.querySelector('.btn-logout');
+
+  if (desktop) {
+    addIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement !== left) left.appendChild(el);
+    });
+    if (logout && logout.parentElement !== right) right.appendChild(logout);
+  } else {
+    // сначала возвращаем «Выйти» в шапку, потом вставляем перед ним остальное
+    if (logout && logout.parentElement !== headerRight) headerRight.appendChild(logout);
+    addIds.slice().reverse().forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement !== headerRight) headerRight.insertBefore(el, logout);
+    });
+  }
 }
 
 // ===== МОБИЛЬНОЕ БУРГЕР-МЕНЮ =====
