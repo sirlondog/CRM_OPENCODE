@@ -356,6 +356,17 @@
   .order-status-line { margin-top: 4px; }
   .order-status-line .badge { font-size: 10px; padding: 2px 6px; line-height: 1.2; max-width: 100%; }
   .comment-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-light); }
+  /* десктоп: узкие № и заказчик, максимум места под комментарий */
+  @media (min-width: 641px) {
+    #mainTable.orders-table { table-layout: fixed; }
+    #mainTable.orders-table .col-order { width: 110px; }
+    #mainTable.orders-table .col-customer { width: 180px; }
+    #mainTable.orders-table .col-cost { width: 110px; }
+    #mainTable.orders-table .cust-name,
+    #mainTable.orders-table .cust-phone,
+    #mainTable.orders-table .cust-login { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #mainTable.orders-table .comment-cell { max-width: none; }
+  }
 
   .comment-add-row { display:flex; gap:8px; margin-top:10px; }
   .comment-add-row input { flex:1; min-width:0; }
@@ -767,7 +778,7 @@
     </div>
 
     <div class="card" id="mainCard">
-      <table>
+      <table id="mainTable">
         <thead id="tableHead"></thead>
         <tbody id="tableBody"></tbody>
       </table>
@@ -1649,8 +1660,8 @@ function statusBadge(status) {
 }
 
 const ORDERS_HEAD = '<tr>' +
-  '<th>№ заказа</th><th>Заказчик</th><th>Стоимость</th>' +
-  '<th>Комментарий</th></tr>';
+  '<th class="col-order">№ заказа</th><th class="col-customer">Заказчик</th><th class="col-cost">Стоимость</th>' +
+  '<th class="col-comment">Комментарий</th></tr>';
 
 // стоимость на главной = сумма ВСЕХ отмеченных конфигураций (галочки в карточке);
 // если отмечено несколько — складываются (например, заказ на 2 компьютера)
@@ -1666,6 +1677,7 @@ function render() {
   if (currentTab === 'parts') { renderParts(); return; }
   if (currentTab === 'stock') { renderStock(); return; }
   if (currentTab === 'dashboard') { renderDashboard(); return; }
+  document.getElementById('mainTable').classList.add('orders-table');
   document.getElementById('tableHead').innerHTML = ORDERS_HEAD;
   const isArchive = currentTab === 'archive';
   const archiveList = visibleArchive();
@@ -1697,15 +1709,15 @@ function render() {
   tbody.innerHTML = data.map(o => {
     const total = configTotal(o);
     return '<tr>' +
-      '<td><div class="num-wrap"><a class="order-num" title="Открыть карточку заказа" onclick="openOrderCard(' + o.id + ')">' + esc(o.number) + '</a>' +
+      '<td class="col-order"><div class="num-wrap"><a class="order-num" title="Открыть карточку заказа" onclick="openOrderCard(' + o.id + ')">' + esc(o.number) + '</a>' +
         '<button class="btn-copy" title="Скопировать заказ текстом (для мессенджера)" onclick="copyOrder(' + o.id + ', this)">💾</button></div>' +
         '<div class="order-date">' + esc(fmtDate(o.date)) + '</div>' +
         '<div class="order-status-line">' + statusBadge(o.status, o.id) + '</div></td>' +
-      '<td><div class="cust-name">' + esc(o.name) + '</div>' +
+      '<td class="col-customer"><div class="cust-name">' + esc(o.name) + '</div>' +
         (telDigits(o.phone) ? '<a class="cust-phone cust-tel" href="tel:' + telDigits(o.phone) + '">' + esc(o.phone) + '</a>' : '<div class="cust-phone">' + esc(o.phone) + '</div>') +
         (o.login ? '<div class="cust-login">@' + esc(o.login) + '</div>' : '') + '</td>' +
-      '<td class="order-cost">' + (total > 0 ? fmtMoney(total) : '—') + '</td>' +
-      '<td class="comment-cell" title="' + esc(plainCommentText(o.comment)) + '">' + esc(plainCommentText(o.comment)) + '</td>' +
+      '<td class="order-cost col-cost">' + (total > 0 ? fmtMoney(total) : '—') + '</td>' +
+      '<td class="comment-cell col-comment" title="' + esc(plainCommentText(o.comment)) + '">' + esc(plainCommentText(o.comment)) + '</td>' +
     '</tr>';
   }).join('');
 }
@@ -1863,6 +1875,7 @@ function normName(s) {
 }
 
 function renderParts() {
+  document.getElementById('mainTable').classList.remove('orders-table');
   document.getElementById('tableHead').innerHTML = '<tr>' +
     '<th>Категория</th><th>Название</th><th>Цена</th><th>Магазин</th><th>Действия</th></tr>';
 
@@ -3566,6 +3579,7 @@ document.addEventListener('click', e => {
 });
 
 function renderStock() {
+  document.getElementById('mainTable').classList.remove('orders-table');
   if (!isAdmin()) { switchTab('orders'); return; }
   const rawQ = (document.getElementById('stockSearch').value || '').trim();
   const q = rawQ.toLowerCase();
