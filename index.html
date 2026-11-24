@@ -3241,8 +3241,10 @@ function switchStockView(archived) {
   stockSelected.clear();
   document.getElementById('stockViewActive').classList.toggle('active', !stockArchiveView);
   document.getElementById('stockViewArchive').classList.toggle('active', stockArchiveView);
-  document.getElementById('btnAddStock').style.display =
-    (currentTab === 'stock' && !stockArchiveView) ? 'inline-block' : 'none';
+  // кнопка добавления теперь в шапке (id btnAddStockHeader)
+  const btnAddStockH = document.getElementById('btnAddStockHeader');
+  if (btnAddStockH) btnAddStockH.style.display =
+    (isAdmin() && currentTab === 'stock' && !stockArchiveView) ? 'inline-flex' : 'none';
   render();
 }
 
