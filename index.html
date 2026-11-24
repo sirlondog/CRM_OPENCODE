@@ -101,8 +101,9 @@
     border-bottom: 1px solid var(--border);
     position: sticky; top: 0; z-index: 10;
   }
-  header .logo { font-weight: 600; font-size: 16px; letter-spacing: -.01em; }
-  header .logo span { color: var(--green); }
+  header .logo { font-weight: 600; font-size: 16px; letter-spacing: -.01em; white-space: nowrap; flex: 0 0 auto; }
+  header .logo .logo-accent { color: var(--green); }
+  .logo-short, .login-short { display: none; }
   .header-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
   .header-search {
     width: 220px; max-width: min(52vw, 280px); padding: 7px 10px;
@@ -600,7 +601,18 @@
     .card { overflow-x: auto; }
     .card table { min-width: 760px; }
     .container { padding: 14px 10px; }
-    header { padding: 10px 12px; }
+    /* шапка на мобильном в одну строку: поиск, +, Выйти */
+    header { padding: 8px 10px; gap: 8px; flex-wrap: nowrap; }
+    header .logo { font-size: 14px; }
+    header .logo-full, .login-full { display: none; }
+    header .logo-short, .login-short { display: inline; }
+    .header-right { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; gap: 6px; justify-content: flex-end; }
+    .header-search {
+      width: auto; max-width: none; flex: 1 1 auto; min-width: 0;
+      padding: 7px 8px; font-size: 12px;
+    }
+    #btnAddOrderHeader, #btnAddPartHeader, #btnAddStockHeader { padding: 7px 10px; flex: 0 0 auto; }
+    .btn-logout { padding: 7px 10px; font-size: 12px; flex: 0 0 auto; white-space: nowrap; }
     .modal { padding: 20px 16px; }
     /* поле дата не вылезает за экран: модалка на всю ширину, дата сжимается */
     .modal { width: calc(100vw - 16px); max-width: calc(100vw - 16px); }
@@ -611,7 +623,7 @@
       -webkit-appearance: none; appearance: none;
     }
     /* результаты глобального поиска — на всю ширину экрана */
-    .global-search-results { top: 100px; right: 10px; width: calc(100vw - 20px); max-width: none; }
+    .global-search-results { top: 52px; right: 10px; width: calc(100vw - 20px); max-width: none; }
     /* строка вкладок переносится, кнопки не вылезают за экран */
     .tabs { flex-wrap: wrap; }
     .toolbar > div:last-child { flex-wrap: wrap; gap: 10px; }
@@ -641,7 +653,7 @@
 <!-- ============ ОКНО ВХОДА ============ -->
 <div id="loginScreen">
   <div class="login-box">
-    <h1>CRM-STARCOMP</h1>
+    <h1><span class="login-full">CRM-STARCOMP</span><span class="login-short">CRM</span></h1>
     <div class="sub">Вход в систему</div>
     <label for="loginEmail">Логин</label>
     <input id="loginEmail" type="text" placeholder="логин или email" autocomplete="username" onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
@@ -655,7 +667,7 @@
 <!-- ============ ОСНОВНОЕ ПРИЛОЖЕНИЕ ============ -->
 <div id="app">
   <header>
-    <div class="logo">CRM-<span>STARCOMP</span></div>
+    <div class="logo"><span class="logo-full">CRM-<span class="logo-accent">STARCOMP</span></span><span class="logo-short">CRM</span></div>
     <div class="header-right">
       <input type="search" class="header-search" id="globalSearchInput" placeholder="Поиск по всей базе…" autocomplete="off" aria-label="Поиск по всей базе" oninput="onGlobalSearchInput()" onkeydown="onGlobalSearchKey(event)">
       <button class="btn-add" id="btnAddOrderHeader" style="display:none" title="Добавить заказ" onclick="openAddModal()"><span class="btn-part-full">+ Добавить заказ</span><span class="btn-part-plus">+</span></button>
