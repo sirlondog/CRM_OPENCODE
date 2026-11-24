@@ -144,23 +144,31 @@
   /* мобильное бургер-меню (на десктопе скрыто) */
   .burger-btn {
     display: none; align-items: center; justify-content: center;
-    background: transparent; border: 1px solid var(--border); border-radius: 8px;
-    color: var(--text); font-size: 18px; line-height: 1;
-    padding: 7px 10px; cursor: pointer; font-family: inherit;
+    width: 42px; height: 38px; padding: 0;
+    background: transparent; border: 1px solid var(--border); border-radius: 9px;
+    color: var(--text); cursor: pointer; font-family: inherit;
+  }
+  .burger-lines {
+    display: flex; flex-direction: column; justify-content: center;
+    gap: 3px; width: 18px; height: 16px;
+  }
+  .burger-lines i {
+    display: block; width: 100%; height: 2px; border-radius: 2px;
+    background: currentColor;
   }
   .burger-btn.open { border-color: var(--green); color: var(--green); }
   .mobile-menu {
     display: none; position: fixed; z-index: 9500;
-    top: 52px; left: 8px; right: 8px;
-    flex-direction: column; gap: 4px; padding: 8px;
+    top: 56px; left: 8px; right: 8px;
+    flex-direction: column; gap: 5px; padding: 10px;
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; box-shadow: 0 18px 50px rgba(0,0,0,.6);
   }
   .mobile-menu.open { display: flex; }
   .mobile-menu-item {
-    position: relative; text-align: left; padding: 11px 12px;
+    position: relative; text-align: left; padding: 12px 14px;
     border: 0; border-radius: 8px; background: transparent; color: var(--text);
-    font-family: inherit; font-size: 14px; cursor: pointer;
+    font-family: inherit; font-size: 15px; cursor: pointer;
   }
   .mobile-menu-item.active { background: var(--green); color: var(--on-green); font-weight: 500; }
   .mobile-menu-sep { height: 1px; background: var(--border); margin: 4px 0; }
@@ -629,12 +637,15 @@
     header { padding: 8px 10px; gap: 8px; flex-wrap: nowrap; justify-content: space-between; }
     header .logo { display: none; }
     .burger-btn { display: inline-flex; flex: 0 0 auto; }
-    .header-right { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; gap: 6px; justify-content: flex-end; }
+    .header-right { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; gap: 6px; justify-content: flex-end; align-items: center; }
     .header-search {
       width: auto; max-width: none; flex: 1 1 auto; min-width: 0;
-      padding: 7px 8px; font-size: 12px;
+      height: 38px; box-sizing: border-box; padding: 0 10px; font-size: 12px;
     }
-    #btnAddOrderHeader, #btnAddPartHeader, #btnAddStockHeader { padding: 7px 10px; flex: 0 0 auto; }
+    #btnAddOrderHeader, #btnAddPartHeader, #btnAddStockHeader {
+      height: 38px; box-sizing: border-box; padding: 0 12px; flex: 0 0 auto;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
     .btn-logout { display: none; }
     .tabs { display: none; }
     .toolbar { justify-content: flex-end; }
@@ -651,7 +662,7 @@
       -webkit-appearance: none; appearance: none;
     }
     /* результаты глобального поиска — на всю ширину экрана */
-    .global-search-results { top: 52px; right: 10px; width: calc(100vw - 20px); max-width: none; }
+    .global-search-results { top: 56px; right: 10px; width: calc(100vw - 20px); max-width: none; }
     /* строка вкладок переносится, кнопки не вылезают за экран */
     .tabs { flex-wrap: wrap; }
     .toolbar > div:last-child { flex-wrap: wrap; gap: 10px; }
@@ -696,7 +707,7 @@
 <div id="app">
   <header>
     <div class="logo"><span class="logo-full">CRM-<span class="logo-accent">STARCOMP</span></span><span class="logo-short">CRM</span></div>
-    <button class="burger-btn" id="burgerBtn" type="button" aria-label="Меню" aria-expanded="false" onclick="toggleMobileMenu()">☰</button>
+    <button class="burger-btn" id="burgerBtn" type="button" aria-label="Меню" aria-expanded="false" onclick="toggleMobileMenu()"><span class="burger-lines" aria-hidden="true"><i></i><i></i><i></i></span></button>
     <div class="header-right">
       <input type="search" class="header-search" id="globalSearchInput" placeholder="Поиск по всей базе…" autocomplete="off" aria-label="Поиск по всей базе" oninput="onGlobalSearchInput()" onkeydown="onGlobalSearchKey(event)">
       <button class="btn-add" id="btnAddOrderHeader" style="display:none" title="Добавить заказ" onclick="openAddModal()"><span class="btn-part-full">+ Добавить заказ</span><span class="btn-part-plus">+</span></button>
